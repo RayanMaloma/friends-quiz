@@ -7,6 +7,13 @@ import { isKnownPerson } from "@/lib/people";
 
 export const dynamic = "force-dynamic";
 
+/** Trim, collapse spaces, strip control chars; 1–24 characters. */
+function cleanName(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const name = v.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim();
+  return name.length >= 1 && [...name].length <= 24 ? name : null;
+}
+
 function isRoomCode(v: unknown): v is string {
   return typeof v === "string" && /^[0-9]{4}$/.test(v);
 }
@@ -25,16 +32,29 @@ export async function POST(req: Request) {
 
     if (action === "join") {
       if (!isRoomCode(body.code)) return fail("GAME_NOT_FOUND", 404);
-      if (!isKnownPerson(body.personId)) return fail("BAD_REQUEST");
+      const name = cleanName(body.name);
+      if (!name) return fail("BAD_NAME");
+      // Optional link to a fact owner (people.json id). null = regular player.
+      const personId = body.personId ?? null;
+      if (personId !== null && !isKnownPerson(personId)) return fail("BAD_REQUEST");
       const playerToken = newToken();
       const res = await rpc<RpcResult>("fq_join_game", {
         p_code: body.code,
-        p_person_id: body.personId,
+        p_display_name: name,
+        p_person_id: personId,
         p_token_hash: hashToken(playerToken),
       });
-      if (!res.ok) return fail(res.error, res.error === "IDENTITY_TAKEN" ? 409 : 404);
+      if (!res.ok) {
+        const status = res.error === "GAME_NOT_FOUND" ? 404 : res.error === "BAD_NAME" ? 400 : 409;
+        return fail(res.error, status);
+      }
       await notifyGame(res.session_id as string);
-      return ok({ sessionId: res.session_id, playerToken, personId: body.personId });
+      return ok({
+        sessionId: res.session_id,
+        playerToken,
+        name: res.display_name,
+        personId: res.person_id ?? null,
+      });
     }
 
     const { sessionId, playerToken } = body;

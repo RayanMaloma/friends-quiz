@@ -1,24 +1,26 @@
 @import "tailwindcss";
 
+/* Light, chunky party-game theme: cream stage, ink outlines, hard offset shadows. */
 @theme {
-  --color-ink: #0e0c13;
-  --color-panel: #1a1722;
-  --color-panel-2: #232030;
-  --color-line: #2f2b3b;
-  --color-paper: #f7f3e8;
-  --color-mute: #9c95ab;
-  --color-sun: #ffd23f;
-  --color-sun-deep: #f5b700;
-  --color-sun-ink: #1d1600;
-  --color-mint: #3ddc97;
-  --color-rose: #ff5d73;
+  --color-cream: #fff4de;
+  --color-cream-2: #fbe6c2;
+  --color-ink: #20163a;
+  --color-card: #ffffff;
+  --color-mute: #6e6585;
+  --color-sun: #ffc72c;
+  --color-pink: #ff4f8b;
+  --color-sky: #3e82ff;
+  --color-mint: #16c47b;
+  --color-grape: #8a5cff;
+  --color-orange: #ff8a3d;
   --font-sans: var(--font-cairo), system-ui, sans-serif;
+  --font-display: var(--font-lalezar), var(--font-cairo), system-ui, sans-serif;
 }
 
 html,
 body {
-  background: var(--color-ink);
-  color: var(--color-paper);
+  background: var(--color-cream);
+  color: var(--color-ink);
 }
 
 body {
@@ -28,13 +30,11 @@ body {
   overscroll-behavior-y: none;
 }
 
-/* Comic halftone + soft top spotlight. Matches the comic-style portraits. */
+/* Cream stage with a light dot grid. */
 .stage-bg {
-  background-color: var(--color-ink);
-  background-image:
-    radial-gradient(ellipse 70% 55% at 50% -10%, rgb(255 210 63 / 0.13), transparent 70%),
-    radial-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1.4px);
-  background-size: 100% 100%, 14px 14px;
+  background-color: var(--color-cream);
+  background-image: radial-gradient(rgb(32 22 58 / 0.09) 1.3px, transparent 1.6px);
+  background-size: 22px 22px;
 }
 
 .safe-pad {
@@ -48,57 +48,80 @@ body {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+/* Chunky surfaces */
+.chunk {
+  border: 4px solid var(--color-ink);
+  border-radius: 1.75rem;
+  box-shadow: 0 6px 0 var(--color-ink);
+}
+.chunk-sm {
+  border: 3px solid var(--color-ink);
+  border-radius: 1.1rem;
+  box-shadow: 0 4px 0 var(--color-ink);
+}
+/* TV-scaled version (reads from across the room). */
+.chunk-tv {
+  border: max(4px, 0.45vh) solid var(--color-ink);
+  border-radius: 3vh;
+  box-shadow: 0 max(6px, 0.8vh) 0 var(--color-ink);
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.6em;
-  border-radius: 1.1rem;
-  font-weight: 800;
-  transition: transform 120ms ease, background-color 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
+  border: 4px solid var(--color-ink);
+  border-radius: 1.4rem;
+  box-shadow: 0 6px 0 var(--color-ink);
+  font-family: var(--font-display);
+  line-height: 1;
+  padding-top: 0.15em;
+  transition: transform 100ms ease, box-shadow 100ms ease, opacity 150ms ease;
   user-select: none;
   touch-action: manipulation;
 }
 .btn:active:not(:disabled) {
-  transform: translateY(2px) scale(0.99);
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--color-ink);
 }
 .btn:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 .btn-primary {
   background: var(--color-sun);
-  color: var(--color-sun-ink);
-  box-shadow: 0 6px 0 var(--color-sun-deep), 0 14px 40px rgb(255 210 63 / 0.18);
-}
-.btn-primary:active:not(:disabled) {
-  box-shadow: 0 3px 0 var(--color-sun-deep);
+  color: var(--color-ink);
 }
 .btn-ghost {
-  background: var(--color-panel-2);
-  color: var(--color-paper);
-  border: 1px solid var(--color-line);
+  background: var(--color-card);
+  color: var(--color-ink);
+}
+.btn-tv {
+  border-width: max(4px, 0.45vh);
+  border-radius: 2.6vh;
+  box-shadow: 0 max(6px, 0.9vh) 0 var(--color-ink);
 }
 
-/* Motion — kept to transforms/opacity for reliability. */
+/* Motion — transforms/opacity only. */
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(40px) scale(0.96); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes pop-in {
-  0%   { opacity: 0; transform: scale(0.6); }
-  70%  { opacity: 1; transform: scale(1.06); }
-  100% { opacity: 1; transform: scale(1); }
+  0%   { opacity: 0; transform: scale(0.5) rotate(-6deg); }
+  70%  { opacity: 1; transform: scale(1.08) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
 }
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 @keyframes portrait-in {
-  0%   { opacity: 0; transform: translateY(18%) scale(0.92); filter: brightness(2.2) contrast(0.6); }
-  60%  { opacity: 1; filter: brightness(1.1); }
-  100% { opacity: 1; transform: none; filter: none; }
+  0%   { opacity: 0; transform: translateY(22%) scale(0.9); }
+  65%  { opacity: 1; transform: translateY(-2%) scale(1.02); }
+  100% { opacity: 1; transform: none; }
 }
 @keyframes disc-in {
   0%   { transform: scale(0); }
@@ -109,38 +132,44 @@ body {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }
 }
-@keyframes soft-pulse {
-  0%, 100% { box-shadow: 0 6px 0 var(--color-sun-deep), 0 0 0 0 rgb(255 210 63 / 0.45); }
-  50%      { box-shadow: 0 6px 0 var(--color-sun-deep), 0 0 0 18px rgb(255 210 63 / 0); }
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-2deg); }
+  50%      { transform: rotate(2deg); }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50%      { transform: translateY(-10px) rotate(var(--r, 0deg)); }
 }
 @keyframes confetti-fall {
   0%   { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
   100% { transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(var(--spin, 540deg)); opacity: 0.9; }
 }
-@keyframes float-y {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
-}
 @keyframes spin-slow {
   to { transform: rotate(360deg); }
 }
+@keyframes nudge {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
 
-.anim-rise { animation: rise-in 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-rise { animation: rise-in 550ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .anim-pop { animation: pop-in 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.anim-fade { animation: fade-in 500ms ease both; }
-.anim-portrait { animation: portrait-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.anim-disc { animation: disc-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-fade { animation: fade-in 450ms ease both; }
+.anim-portrait { animation: portrait-in 850ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-disc { animation: disc-in 650ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .anim-bar { transform-origin: right center; animation: bar-grow 800ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.anim-pulse { animation: soft-pulse 1.6s ease-in-out infinite; }
-.anim-float { animation: float-y 3s ease-in-out infinite; }
-.anim-spin-slow { animation: spin-slow 40s linear infinite; }
+.anim-wiggle { animation: wiggle 2.4s ease-in-out infinite; }
+.anim-bob { animation: bob 3.2s ease-in-out infinite; }
+.anim-nudge { animation: nudge 1.2s ease-in-out infinite; }
+.anim-spin-slow { animation: spin-slow 30s linear infinite; }
 
 .confetti-piece {
   position: absolute;
   top: 0;
-  width: 12px;
-  height: 18px;
-  border-radius: 2px;
+  width: 14px;
+  height: 20px;
+  border: 2px solid var(--color-ink);
+  border-radius: 3px;
   animation: confetti-fall linear infinite;
   will-change: transform;
 }
@@ -148,6 +177,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
   }
   .confetti-piece { display: none; }
@@ -155,3 +185,85 @@ body {
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+
+/* ---------------------------------------------------------------------------
+   Lobby "peeking friends" — portraits sneak in from outside the screen.
+   The layer sits BEHIND the lobby content, so it can never cover the code/QR.
+   --------------------------------------------------------------------------- */
+.peek {
+  position: absolute;
+  height: var(--h);
+  aspect-ratio: 3 / 4;
+  will-change: transform;
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+
+/* Rises from the bottom, wobbles a bit, anticipates, drops. */
+.peek-rise { bottom: 0; animation-name: peek-rise; }
+@keyframes peek-rise {
+  0%   { transform: translateY(100%); animation-timing-function: cubic-bezier(0.25, 1.55, 0.5, 1); }
+  18%  { transform: translateY(46%); animation-timing-function: ease-in-out; }
+  40%  { transform: translateY(45%) rotate(-3deg); animation-timing-function: ease-in-out; }
+  60%  { transform: translateY(44%) rotate(3deg); animation-timing-function: ease-in-out; }
+  80%  { transform: translateY(46%) rotate(0); animation-timing-function: cubic-bezier(0.6, -0.5, 0.8, 0.6); }
+  100% { transform: translateY(105%); }
+}
+
+/* Leans in from the bottom-right corner, pivoting on the corner. */
+.peek-lean-right { bottom: -2vh; right: 0; transform-origin: 100% 100%; animation-name: peek-lean-right; }
+@keyframes peek-lean-right {
+  0%   { transform: translateX(100%) rotate(0); animation-timing-function: cubic-bezier(0.3, 1.5, 0.5, 1); }
+  20%  { transform: translateX(42%) rotate(-15deg); animation-timing-function: ease-out; }
+  30%  { transform: translateX(44%) rotate(-11deg); animation-timing-function: ease-in-out; }
+  78%  { transform: translateX(44%) rotate(-12deg); animation-timing-function: cubic-bezier(0.7, 0, 0.9, 0.5); }
+  100% { transform: translateX(115%) rotate(4deg); }
+}
+
+/* Mirror: leans in from the bottom-left corner. */
+.peek-lean-left { bottom: -2vh; left: 0; transform-origin: 0% 100%; animation-name: peek-lean-left; }
+@keyframes peek-lean-left {
+  0%   { transform: translateX(-100%) rotate(0); animation-timing-function: cubic-bezier(0.3, 1.45, 0.5, 1); }
+  22%  { transform: translateX(-40%) rotate(16deg); animation-timing-function: ease-out; }
+  32%  { transform: translateX(-42%) rotate(12deg); animation-timing-function: ease-in-out; }
+  55%  { transform: translateX(-42%) rotate(14deg); animation-timing-function: ease-in-out; }
+  78%  { transform: translateX(-42%) rotate(12deg); animation-timing-function: cubic-bezier(0.7, 0, 0.9, 0.5); }
+  100% { transform: translateX(-115%) rotate(-4deg); }
+}
+
+/* Hangs upside-down from the top edge and swings like a pendulum. */
+.peek-hang { top: 0; transform-origin: 50% 0%; animation-name: peek-hang; }
+@keyframes peek-hang {
+  0%   { transform: rotate(180deg) translateY(0); animation-timing-function: cubic-bezier(0.3, 1.4, 0.5, 1); }
+  22%  { transform: rotate(180deg) translateY(-52%); animation-timing-function: ease-in-out; }
+  38%  { transform: rotate(187deg) translateY(-52%); animation-timing-function: ease-in-out; }
+  54%  { transform: rotate(175deg) translateY(-52%); animation-timing-function: ease-in-out; }
+  68%  { transform: rotate(182deg) translateY(-52%); animation-timing-function: ease-in-out; }
+  80%  { transform: rotate(180deg) translateY(-52%); animation-timing-function: cubic-bezier(0.6, 0, 0.9, 0.4); }
+  100% { transform: rotate(180deg) translateY(2%); }
+}
+
+/* Pops up fast, freezes ("oh no, they can see me"), drops instantly. */
+.peek-oops { bottom: 0; animation-name: peek-oops; }
+@keyframes peek-oops {
+  0%   { transform: translateY(100%); animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.25); }
+  16%  { transform: translateY(40%); }
+  42%  { transform: translateY(40%) scale(1.03, 0.98); animation-timing-function: cubic-bezier(0.8, 0, 1, 0.5); }
+  56%  { transform: translateY(110%); }
+  100% { transform: translateY(110%); }
+}
+
+/* Slides in sideways from the right edge, lying down, head first. */
+.peek-side { right: 0; transform-origin: 100% 100%; animation-name: peek-side; }
+@keyframes peek-side {
+  0%   { transform: translateX(calc(var(--h) * 1.05)) rotate(-90deg); animation-timing-function: cubic-bezier(0.3, 1.5, 0.55, 1); }
+  20%  { transform: translateX(calc(var(--h) * 0.6)) rotate(-90deg); animation-timing-function: ease-in-out; }
+  45%  { transform: translateX(calc(var(--h) * 0.6)) rotate(-84deg); animation-timing-function: ease-in-out; }
+  65%  { transform: translateX(calc(var(--h) * 0.6)) rotate(-93deg); animation-timing-function: ease-in-out; }
+  80%  { transform: translateX(calc(var(--h) * 0.6)) rotate(-90deg); animation-timing-function: cubic-bezier(0.7, 0, 0.9, 0.5); }
+  100% { transform: translateX(calc(var(--h) * 1.1)) rotate(-90deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peek-layer { display: none; }
+}

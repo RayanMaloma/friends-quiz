@@ -22,7 +22,7 @@ export interface Snapshot {
     total_questions: number;
     host_token_hash: string;
   };
-  players: { id: string; person_id: string; token_hash: string | null }[];
+  players: { id: string; display_name: string; person_id: string | null; token_hash: string | null }[];
   rounds: {
     id: string;
     round_index: number;
@@ -36,9 +36,19 @@ export interface Snapshot {
 }
 
 export interface LeaderboardEntry {
-  personId: string;
+  playerId: string;
+  name: string;
+  /** Set only if this player is one of the fact owners (used for the winner portrait). */
+  personId: string | null;
   score: number;
   rank: number;
+}
+
+export interface HostPlayer {
+  playerId: string;
+  name: string;
+  personId: string | null;
+  active: boolean;
 }
 
 /** What the TV/host browser receives. Never contains the fact owner before reveal. */
@@ -50,7 +60,7 @@ export interface HostView {
   currentIndex: number;
   totalQuestions: number;
   isLastQuestion: boolean;
-  players: { personId: string; active: boolean }[];
+  players: HostPlayer[];
   question: {
     index: number;
     factText: string;
@@ -77,7 +87,8 @@ export interface GuestView {
   status: GameStatus;
   currentIndex: number;
   totalQuestions: number;
-  me: { personId: string };
+  /** personId is set only if this player is linked to a fact owner. */
+  me: { playerId: string; name: string; personId: string | null };
   question: {
     index: number;
     factText: string;

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import type { HostView } from "@/lib/types";
-import { PEOPLE } from "@/lib/people";
-import { Avatar } from "@/components/PersonImage";
+import { personName } from "@/lib/people";
+import { NameBadge } from "@/components/ui";
 
 /**
- * Host-only escape hatch: if a phone died or someone picked the wrong name,
- * free the identity so another device can pick it. Answers/score are kept.
+ * Host-only escape hatch: if a phone died or someone needs to switch device,
+ * free the player so a new device can rejoin with the same name. Score is kept.
  */
 export function PlayersPanel({
   view,
@@ -16,52 +16,56 @@ export function PlayersPanel({
 }: {
   view: HostView;
   onClose: () => void;
-  onRelease: (personId: string) => Promise<void>;
+  onRelease: (playerId: string) => Promise<void>;
 }) {
   const [pending, setPending] = useState<string | null>(null);
-  const byId = new Map(view.players.map((p) => [p.personId, p]));
+  const inLobby = view.status === "LOBBY";
 
   return (
-    <div className="anim-fade fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6" onClick={onClose}>
+    <div className="anim-fade fixed inset-0 z-40 flex items-center justify-center bg-ink/50 p-6" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-3xl border border-line bg-panel p-6"
+        className="chunk flex max-h-[85vh] w-full max-w-xl flex-col bg-cream p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-2xl font-black">اللاعبين</h2>
-          <button onClick={onClose} className="btn btn-ghost h-10 rounded-full px-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-3xl">اللاعبين ({view.players.length})</h2>
+          <button onClick={onClose} className="btn btn-ghost h-11 px-4 text-lg">
             إغلاق
           </button>
         </div>
-        <p className="mb-4 text-sm text-mute">
-          «فك الربط» يخلي جهاز ثاني يقدر يختار نفس الاسم (لو الجوال طفى أو أحد اختار غلط). النقاط ما تنمسح.
+        <p className="mb-4 text-sm font-bold text-mute">
+          {inLobby
+            ? "«إزالة» يطلع اللاعب من اللعبة."
+            : "«فك الربط» يخلي اللاعب يدخل من جهاز ثاني بنفس الاسم. النقاط ما تنمسح."}
         </p>
-        <ul className="flex flex-col gap-2">
-          {PEOPLE.map((p) => {
-            const player = byId.get(p.id);
-            const status = !player ? "ما دخل" : player.active ? "داخل" : "بانتظار جهاز";
-            return (
-              <li key={p.id} className="flex items-center gap-3 rounded-2xl bg-panel-2 px-3 py-2">
-                <Avatar personId={p.id} className="size-11" />
-                <span className="flex-1 text-lg font-bold">{p.name}</span>
-                <span className={`text-sm font-bold ${player?.active ? "text-mint" : "text-mute"}`}>{status}</span>
-                {player?.active && (
-                  <button
-                    disabled={pending === p.id}
-                    onClick={async () => {
-                      if (!window.confirm(`متأكد؟ بيقدر جهاز ثاني يدخل باسم ${p.name}`)) return;
-                      setPending(p.id);
-                      await onRelease(p.id);
-                      setPending(null);
-                    }}
-                    className="btn h-9 rounded-xl bg-rose/15 px-3 text-sm text-rose"
-                  >
-                    فك الربط
-                  </button>
-                )}
-              </li>
-            );
-          })}
+        {view.players.length === 0 && <p className="font-bold text-mute">ما أحد دخل للحين</p>}
+        <ul className="no-scrollbar flex flex-col gap-2 overflow-y-auto pb-2">
+          {view.players.map((p) => (
+            <li key={p.playerId} className="chunk-sm flex items-center gap-3 bg-card px-3 py-2">
+              <NameBadge playerId={p.playerId} name={p.name} className="size-10 text-xl" />
+              <span className="flex-1 truncate text-lg font-extrabold">
+                {p.name}
+                {p.personId && <span className="ms-2 text-sm text-mute">({personName(p.personId)})</span>}
+              </span>
+              <span className={`text-sm font-bold ${p.active ? "text-mint" : "text-mute"}`}>
+                {p.active ? "متصل" : "بانتظار جهاز"}
+              </span>
+              {p.active && (
+                <button
+                  disabled={pending === p.playerId}
+                  onClick={async () => {
+                    if (!window.confirm(`متأكد؟ (${p.name})`)) return;
+                    setPending(p.playerId);
+                    await onRelease(p.playerId);
+                    setPending(null);
+                  }}
+                  className="btn h-9 bg-pink px-3 text-sm text-white"
+                >
+                  {inLobby ? "إزالة" : "فك الربط"}
+                </button>
+              )}
+            </li>
+          ))}
         </ul>
       </div>
     </div>

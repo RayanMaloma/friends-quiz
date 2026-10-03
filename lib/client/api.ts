@@ -34,7 +34,9 @@ export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUN
 
 const MESSAGES: Record<string, string> = {
   GAME_NOT_FOUND: "رمز اللعبة غير صحيح",
-  IDENTITY_TAKEN: "هذا اللاعب داخل بالفعل",
+  IDENTITY_TAKEN: "هذا الشخص داخل بالفعل من جهاز ثاني",
+  NAME_TAKEN: "هذا الاسم مستخدم، اختار اسم ثاني",
+  BAD_NAME: "اكتب اسمك (لين ٢٤ حرف)",
   NOT_A_PLAYER: "انتهت جلستك في اللعبة، ادخل من جديد",
   FORBIDDEN: "هذا الجهاز ما يتحكم بهذي اللعبة",
   ROUND_CLOSED: "انقفل السؤال قبل ما توصل إجابتك",

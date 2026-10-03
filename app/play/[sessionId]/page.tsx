@@ -9,10 +9,10 @@ import { useStored } from "@/lib/client/useStored";
 import { useGameSync } from "@/lib/client/useGameSync";
 import { useWakeLock } from "@/lib/client/useWakeLock";
 import type { GuestView } from "@/lib/types";
-import { PEOPLE, personName } from "@/lib/people";
+import { PEOPLE } from "@/lib/people";
+import { personSwatch } from "@/lib/colors";
 import { phoneFactClass } from "@/lib/format";
-import { Avatar, Portrait } from "@/components/PersonImage";
-import { ConnectionBanner, GuestStatus, Spinner } from "@/components/ui";
+import { ConnectionBanner, GuestStatus, NameBadge, Spinner } from "@/components/ui";
 
 export default function PlayPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -26,7 +26,7 @@ export default function PlayPage() {
   if (!creds) {
     return (
       <main className="flex min-h-dvh items-center justify-center">
-        <Spinner className="size-10 text-sun" />
+        <Spinner className="size-10 text-ink" />
       </main>
     );
   }
@@ -51,7 +51,7 @@ function Controller({ creds }: { creds: PlayerCreds }) {
           <Link
             href="/join"
             onClick={() => playerStore.clear(sessionId)}
-            className="btn btn-primary mt-4 h-14 w-full max-w-xs text-xl"
+            className="btn btn-primary mt-4 h-16 w-full max-w-xs text-2xl"
           >
             ادخل من جديد
           </Link>
@@ -64,42 +64,33 @@ function Controller({ creds }: { creds: PlayerCreds }) {
     return (
       <Shell>
         <div className="flex flex-1 items-center justify-center">
-          <Spinner className="size-10 text-sun" />
+          <Spinner className="size-10 text-ink" />
         </div>
       </Shell>
     );
   }
 
-  const me = view.me.personId;
-
   return (
     <Shell>
       <ConnectionBanner show={!connected} />
-      <header className="flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <Avatar personId={me} className="size-10" ring="bg-sun" />
-          <span className="text-lg font-black">{personName(me)}</span>
+      <header className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2">
+          <NameBadge playerId={view.me.playerId} name={view.me.name} className="size-11 text-2xl" />
+          <span className="truncate font-display text-2xl leading-none pt-1">{view.me.name}</span>
         </span>
-        <span className="rounded-full bg-panel-2 px-3 py-1 text-sm font-bold text-mute">
-          {view.status === "LOBBY" || view.status === "FINISHED"
-            ? <>رمز <span dir="ltr" className="text-paper">{view.code}</span></>
-            : `السؤال ${view.currentIndex + 1} من ${view.totalQuestions}`}
+        <span className="chunk-sm shrink-0 bg-card px-3 pb-1 pt-2 font-display text-lg leading-none">
+          {view.status === "LOBBY" || view.status === "FINISHED" ? (
+            <>
+              رمز <span dir="ltr">{view.code}</span>
+            </>
+          ) : (
+            `السؤال ${view.currentIndex + 1} من ${view.totalQuestions}`
+          )}
         </span>
       </header>
 
       {view.status === "LOBBY" && (
-        <GuestStatus
-          visual={
-            <div className="relative h-56 w-48 overflow-hidden border-b-4 border-sun">
-              <div className="anim-disc absolute inset-x-2 -bottom-8 aspect-square rounded-full bg-sun" />
-              <div className="anim-portrait absolute inset-0">
-                <Portrait personId={me} size="card" eager />
-              </div>
-            </div>
-          }
-          title="تم تسجيل دخولك ✓"
-          subtitle="بانتظار بداية اللعبة"
-        >
+        <GuestStatus emoji="🎉" title="تم تسجيل دخولك ✓" subtitle="بانتظار بداية اللعبة">
           <LeaveButton
             onLeave={async () => {
               const res = await mutate(() => api("/api/guest", { action: "leave", sessionId, playerToken }));
@@ -112,10 +103,11 @@ function Controller({ creds }: { creds: PlayerCreds }) {
         </GuestStatus>
       )}
 
-      {view.status === "QUESTION" && view.question && (
-        view.question.isOwner ? (
-          <GuestStatus emoji="😂" title="هذي المعلومة عنك 😂" subtitle="خل الباقين يحاولون يعرفونك">
-            <p className="mt-6 text-2xl font-black text-sun">تابع الشاشة 👀</p>
+      {view.status === "QUESTION" &&
+        view.question &&
+        (view.question.isOwner ? (
+          <GuestStatus emoji="😂" title="هذي المعلومة عنك!" subtitle="تابع الشاشة 👀" accent>
+            <p className="text-lg font-bold text-mute">خل الباقين يحاولون يعرفونك</p>
           </GuestStatus>
         ) : view.question.submitted ? (
           <GuestStatus emoji="✅" title="تم تسجيل إجابتك ✓" subtitle="تابع الشاشة 👀" accent />
@@ -141,17 +133,18 @@ function Controller({ creds }: { creds: PlayerCreds }) {
               return null;
             }}
           />
-        )
+        ))}
+
+      {view.status === "REVEAL" && (
+        <GuestStatus emoji="📺" title="شوف الشاشة!" subtitle="الإجابة على الشاشة 👀" accent />
       )}
 
-      {view.status === "REVEAL" && <GuestStatus emoji="📺" title="شوف الشاشة 👀" subtitle="الإجابة على الشاشة" accent />}
-
       {view.status === "LEADERBOARD" && (
-        <GuestStatus emoji="📺" title="الترتيب على الشاشة 🏆" subtitle="استعد للمعلومة الجاية" />
+        <GuestStatus emoji="🏆" title="الترتيب على الشاشة" subtitle="استعد للمعلومة الجاية" />
       )}
 
       {view.status === "FINISHED" && (
-        <GuestStatus emoji="🎉" title="خلصت اللعبة 🎉" subtitle="النتائج على الشاشة" accent />
+        <GuestStatus emoji="🎉" title="خلصت اللعبة!" subtitle="النتائج على الشاشة 👀" accent />
       )}
     </Shell>
   );
@@ -168,6 +161,7 @@ function AnswerForm({
   const [selected, setSelected] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Everyone in people.json is a possible answer, except yourself if you're a fact owner.
   const options = PEOPLE.filter((p) => p.id !== view.me.personId);
 
   async function submit() {
@@ -183,46 +177,42 @@ function AnswerForm({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5 pb-32">
-      <div className="anim-rise rounded-3xl border border-line bg-panel p-5">
-        <p className={phoneFactClass(q.factText)}>
-          <span className="text-sun">«</span>
-          {q.factText}
-          <span className="text-sun">»</span>
-        </p>
+    <div className="flex flex-1 flex-col gap-5 pb-36">
+      <div className="chunk anim-pop relative mt-3 bg-card p-5 pt-6">
+        <span className="chunk-sm absolute -top-4 start-4 rotate-6 bg-pink px-3 pb-0.5 pt-1.5 font-display text-lg leading-none text-white">
+          عن مين؟
+        </span>
+        <p className={phoneFactClass(q.factText)}>{q.factText}</p>
       </div>
-      <p className="text-center text-lg font-bold text-mute">عن مين؟</p>
-      <div className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-2 gap-3">
         {options.map((p, i) => {
           const isSel = selected === p.id;
+          const sw = personSwatch(p.id);
           return (
             <button
               key={p.id}
               disabled={sending}
               onClick={() => setSelected(p.id)}
-              className={`anim-rise flex h-16 items-center gap-3 rounded-2xl border-2 px-3 text-start text-xl font-black transition-all ${
-                isSel ? "border-sun bg-sun text-sun-ink" : "border-line bg-panel active:scale-[0.98]"
-              }`}
+              className={`chunk-sm anim-rise relative flex h-20 items-center justify-center px-2 pt-1.5 text-center font-display text-2xl leading-tight transition-transform ${
+                isSel ? `${sw.bg} ${sw.fg} -translate-y-1 scale-[1.03]` : "bg-card"
+              } ${selected && !isSel ? "opacity-60" : ""}`}
               style={{ animationDelay: `${i * 40}ms` }}
             >
-              <Avatar personId={p.id} className="size-11" ring={isSel ? "bg-sun-deep" : "bg-panel-2"} />
-              <span className="flex-1">{p.name}</span>
-              <span
-                className={`grid size-7 place-items-center rounded-full border-2 text-base ${
-                  isSel ? "border-sun-ink bg-sun-ink text-sun" : "border-line"
-                }`}
-              >
-                {isSel ? "✓" : ""}
-              </span>
+              {isSel && (
+                <span className="absolute -top-3 -start-2 grid size-8 place-items-center rounded-full border-[3px] border-ink bg-card font-sans text-base font-black text-ink">
+                  ✓
+                </span>
+              )}
+              {p.name}
             </button>
           );
         })}
       </div>
 
-      <div className="sticky-bottom-safe fixed inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/95 to-transparent px-4 pt-6">
+      <div className="sticky-bottom-safe fixed inset-x-0 bottom-0 bg-gradient-to-t from-cream via-cream/95 to-transparent px-4 pt-8">
         <div className="mx-auto flex max-w-lg flex-col gap-2">
-          {error && <p className="text-center font-bold text-rose">{error}</p>}
-          <button onClick={submit} disabled={!selected || sending} className="btn btn-primary h-16 w-full text-2xl">
+          {error && <p className="text-center font-bold text-pink">{error}</p>}
+          <button onClick={submit} disabled={!selected || sending} className="btn btn-primary h-20 w-full text-3xl">
             {sending && <Spinner />}
             {sending ? "جاري الإرسال…" : "تأكيد الإجابة"}
           </button>
@@ -238,14 +228,14 @@ function LeaveButton({ onLeave }: { onLeave: () => Promise<void> }) {
     <button
       disabled={busy}
       onClick={async () => {
-        if (!window.confirm("تبي تغيّر اسمك؟")) return;
+        if (!window.confirm("تبي تطلع وتدخل باسم ثاني؟")) return;
         setBusy(true);
         await onLeave();
         setBusy(false);
       }}
-      className="mt-8 text-sm font-bold text-mute underline underline-offset-4"
+      className="mt-6 text-base font-bold text-mute underline underline-offset-4"
     >
-      مو أنت؟ غيّر الاسم
+      غلطت بالاسم؟ غيّره
     </button>
   );
 }

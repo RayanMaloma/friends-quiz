@@ -1,24 +1,34 @@
 import type { GuestView, HostView, LeaderboardEntry, Snapshot } from "@/lib/types";
 
+type SnapshotRound = Snapshot["rounds"][number];
+type SnapshotPlayer = Snapshot["players"][number];
+
+/**
+ * Can this player answer this round? Everyone can, except the player linked
+ * to the fact owner. Players with no link (person_id null) answer everything.
+ */
+export function isEligible(player: SnapshotPlayer, round: SnapshotRound): boolean {
+  return player.person_id === null || player.person_id !== round.owner_person_id;
+}
+
 /**
  * Scores are derived, never stored: a player earns 1 point for each REVEALED
- * round where they picked the fact owner. Fact owners can't have answers for
- * their own facts (DB guard), and we exclude them here again for safety.
+ * round where they picked the fact owner. Keyed by player id.
  * Because nothing is incremented, nothing can be scored twice.
  */
 export function computeScores(snapshot: Snapshot): Map<string, number> {
   const roundsById = new Map(snapshot.rounds.map((r) => [r.id, r]));
   const playersById = new Map(snapshot.players.map((p) => [p.id, p]));
   const scores = new Map<string, number>();
-  for (const p of snapshot.players) scores.set(p.person_id, 0);
+  for (const p of snapshot.players) scores.set(p.id, 0);
 
   for (const a of snapshot.answers) {
     const round = roundsById.get(a.round_id);
     const player = playersById.get(a.player_id);
     if (!round || !player || round.status !== "REVEALED") continue;
-    if (player.person_id === round.owner_person_id) continue;
+    if (!isEligible(player, round)) continue;
     if (a.chosen_person_id === round.owner_person_id) {
-      scores.set(player.person_id, (scores.get(player.person_id) ?? 0) + 1);
+      scores.set(player.id, (scores.get(player.id) ?? 0) + 1);
     }
   }
   return scores;
@@ -28,13 +38,15 @@ export function computeScores(snapshot: Snapshot): Map<string, number> {
  * Sorted by score desc. Ties share a rank ("1, 1, 3" style); within a tie the
  * order is stable by `tieOrder` (join order) so the screen doesn't jump around.
  */
-export function rankScores(scores: Map<string, number>, tieOrder: string[]): LeaderboardEntry[] {
+export function rankScores(
+  scores: Map<string, number>,
+  tieOrder: string[],
+): { id: string; score: number; rank: number }[] {
   const orderIndex = new Map(tieOrder.map((id, i) => [id, i]));
-  const entries = [...scores.entries()].map(([personId, score]) => ({ personId, score }));
+  const entries = [...scores.entries()].map(([id, score]) => ({ id, score }));
   entries.sort(
     (a, b) =>
-      b.score - a.score ||
-      (orderIndex.get(a.personId) ?? 999) - (orderIndex.get(b.personId) ?? 999),
+      b.score - a.score || (orderIndex.get(a.id) ?? 1e9) - (orderIndex.get(b.id) ?? 1e9),
   );
   return entries.map((e) => ({
     ...e,
@@ -44,6 +56,14 @@ export function rankScores(scores: Map<string, number>, tieOrder: string[]): Lea
 
 function currentRound(snapshot: Snapshot) {
   return snapshot.rounds.find((r) => r.round_index === snapshot.session.current_index) ?? null;
+}
+
+export function buildLeaderboard(snapshot: Snapshot): LeaderboardEntry[] {
+  const byId = new Map(snapshot.players.map((p) => [p.id, p]));
+  return rankScores(computeScores(snapshot), snapshot.players.map((p) => p.id)).map((e) => {
+    const p = byId.get(e.id)!;
+    return { playerId: p.id, name: p.display_name, personId: p.person_id, score: e.score, rank: e.rank };
+  });
 }
 
 export function buildHostView(snapshot: Snapshot): HostView {
@@ -59,9 +79,8 @@ export function buildHostView(snapshot: Snapshot): HostView {
       index: round.round_index,
       factText: round.fact_text,
       answeredCount: roundAnswers.length,
-      // Live eligible count: everyone who joined except the fact owner.
-      // The owner id is used only for counting; it is not sent.
-      eligibleCount: snapshot.players.filter((p) => p.person_id !== round.owner_person_id).length,
+      // Live eligible count. The owner id is used only for counting; it is not sent.
+      eligibleCount: snapshot.players.filter((p) => isEligible(p, round)).length,
     };
   }
 
@@ -98,12 +117,15 @@ export function buildHostView(snapshot: Snapshot): HostView {
     totalQuestions: session.total_questions,
     isLastQuestion:
       session.total_questions > 0 && session.current_index >= session.total_questions - 1,
-    players: snapshot.players.map((p) => ({ personId: p.person_id, active: p.token_hash !== null })),
+    players: snapshot.players.map((p) => ({
+      playerId: p.id,
+      name: p.display_name,
+      personId: p.person_id,
+      active: p.token_hash !== null,
+    })),
     question,
     reveal,
-    leaderboard: showScores
-      ? rankScores(computeScores(snapshot), snapshot.players.map((p) => p.person_id))
-      : [],
+    leaderboard: showScores ? buildLeaderboard(snapshot) : [],
   };
 }
 
@@ -123,7 +145,7 @@ export function buildGuestView(snapshot: Snapshot, playerId: string): GuestView 
     question = {
       index: round.round_index,
       factText: round.fact_text,
-      isOwner: round.owner_person_id === player.person_id,
+      isOwner: !isEligible(player, round),
       submitted: snapshot.answers.some((a) => a.round_id === round.id && a.player_id === player.id),
     };
   }
@@ -135,7 +157,7 @@ export function buildGuestView(snapshot: Snapshot, playerId: string): GuestView 
     status: session.status,
     currentIndex: session.current_index,
     totalQuestions: session.total_questions,
-    me: { personId: player.person_id },
+    me: { playerId: player.id, name: player.display_name, personId: player.person_id },
     question,
   };
 }

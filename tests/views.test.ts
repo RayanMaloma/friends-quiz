@@ -14,9 +14,10 @@ function snapshot(overrides: Partial<Snapshot["session"]> = {}): Snapshot {
       ...overrides,
     },
     players: [
-      { id: "p-khalid", person_id: "khalid", token_hash: "t1" },
-      { id: "p-rayan", person_id: "rayan", token_hash: "t2" },
-      { id: "p-chinese", person_id: "chinese", token_hash: "t3" },
+      { id: "p-khalid", display_name: "Khalid", person_id: "khalid", token_hash: "t1" },
+      { id: "p-rayan", display_name: "Rayan", person_id: "rayan", token_hash: "t2" },
+      { id: "p-chinese", display_name: "Chinese", person_id: "chinese", token_hash: "t3" },
+      { id: "p-guest", display_name: "Saad", person_id: null, token_hash: "t4" },
     ],
     rounds: [
       { id: "r0", round_index: 0, fact_id: "f0", fact_text: "zero", owner_person_id: "khalid", status: "REVEALED", eligible_count: 2 },
@@ -34,15 +35,21 @@ function snapshot(overrides: Partial<Snapshot["session"]> = {}): Snapshot {
 describe("scoring", () => {
   it("counts only revealed rounds", () => {
     const scores = computeScores(snapshot());
-    expect(scores.get("rayan")).toBe(1);
-    expect(scores.get("khalid")).toBe(0); // r1 correct but not revealed yet
-    expect(scores.get("chinese")).toBe(0);
+    expect(scores.get("p-rayan")).toBe(1);
+    expect(scores.get("p-khalid")).toBe(0); // r1 correct but not revealed yet
+    expect(scores.get("p-chinese")).toBe(0);
   });
 
   it("never gives the owner a point even if an answer row exists", () => {
     const s = snapshot();
     s.answers.push({ round_id: "r0", player_id: "p-khalid", chosen_person_id: "khalid" });
-    expect(computeScores(s).get("khalid")).toBe(0);
+    expect(computeScores(s).get("p-khalid")).toBe(0);
+  });
+
+  it("scores unlinked (non fact-owner) players on every round", () => {
+    const s = snapshot({ status: "REVEAL", current_index: 0 });
+    s.answers.push({ round_id: "r0", player_id: "p-guest", chosen_person_id: "khalid" });
+    expect(computeScores(s).get("p-guest")).toBe(1);
   });
 
   it("ranks ties with shared rank", () => {
@@ -50,7 +57,7 @@ describe("scoring", () => {
       new Map([["a", 3], ["b", 5], ["c", 3], ["d", 1]]),
       ["a", "b", "c", "d"],
     );
-    expect(ranked.map((r) => [r.personId, r.rank])).toEqual([
+    expect(ranked.map((r) => [r.id, r.rank])).toEqual([
       ["b", 1], ["a", 2], ["c", 2], ["d", 4],
     ]);
   });
@@ -59,7 +66,8 @@ describe("scoring", () => {
 describe("host view", () => {
   it("does not expose the owner or scores during QUESTION", () => {
     const view = buildHostView(snapshot());
-    expect(view.question).toEqual({ index: 1, factText: "one", answeredCount: 1, eligibleCount: 2 });
+    // 4 players, rayan owns the fact -> 3 eligible (including the unlinked guest).
+    expect(view.question).toEqual({ index: 1, factText: "one", answeredCount: 1, eligibleCount: 3 });
     expect(view.reveal).toBeNull();
     expect(view.leaderboard).toEqual([]);
     expect(JSON.stringify(view)).not.toContain("owner");
@@ -75,7 +83,7 @@ describe("host view", () => {
       eligibleCount: 2,
     });
     expect(view.reveal!.distribution).toHaveLength(2);
-    expect(view.leaderboard[0]).toMatchObject({ personId: "rayan", score: 1, rank: 1 });
+    expect(view.leaderboard[0]).toMatchObject({ playerId: "p-rayan", name: "Rayan", score: 1, rank: 1 });
   });
 });
 
@@ -101,6 +109,7 @@ describe("guest view", () => {
 
   it("flags the owner and submitted state", () => {
     expect(buildGuestView(snapshot(), "p-rayan")!.question!.isOwner).toBe(true);
+    expect(buildGuestView(snapshot(), "p-guest")!.question!.isOwner).toBe(false);
     expect(buildGuestView(snapshot(), "p-khalid")!.question!.submitted).toBe(true);
   });
 });

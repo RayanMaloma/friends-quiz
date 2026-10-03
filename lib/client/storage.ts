@@ -3,7 +3,9 @@
 export interface PlayerCreds {
   sessionId: string;
   code: string;
-  personId: string;
+  name: string;
+  /** Fact-owner link (people.json id) or null for a regular player. */
+  personId: string | null;
   playerToken: string;
 }
 

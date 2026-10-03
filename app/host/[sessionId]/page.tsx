@@ -21,6 +21,7 @@ import {
   HostReveal,
 } from "@/components/host/HostScreens";
 import { PlayersPanel } from "@/components/host/PlayersPanel";
+import { PeekingFriends } from "@/components/host/PeekingFriends";
 
 type HostAction = "start" | "reveal" | "leaderboard" | "next" | "finish";
 
@@ -28,12 +29,12 @@ export default function HostGamePage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const creds = useStored<HostCreds>(hostKey(sessionId));
 
-  if (creds === undefined) return <FullScreenCenter><Spinner className="size-10 text-sun" /></FullScreenCenter>;
+  if (creds === undefined) return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
   if (creds === null) {
     return (
       <FullScreenCenter>
-        <p className="text-3xl font-black">{errorMessage("FORBIDDEN")}</p>
-        <Link href="/host" className="btn btn-primary h-14 px-8 text-xl">إنشاء لعبة جديدة</Link>
+        <p className="font-display text-4xl">{errorMessage("FORBIDDEN")}</p>
+        <Link href="/host" className="btn btn-primary h-16 px-8 text-2xl">إنشاء لعبة جديدة</Link>
       </FullScreenCenter>
     );
   }
@@ -73,9 +74,9 @@ function HostGame({ creds }: { creds: HostCreds }) {
   );
 
   const release = useCallback(
-    async (personId: string) => {
+    async (playerId: string) => {
       const res = await mutate(() =>
-        api<{ view: HostView }>("/api/host", { action: "release", sessionId, hostToken, personId }),
+        api<{ view: HostView }>("/api/host", { action: "release", sessionId, hostToken, playerId }),
       );
       if (!res.ok) setActionError(errorMessage(res.error));
     },
@@ -108,30 +109,31 @@ function HostGame({ creds }: { creds: HostCreds }) {
   if (fatalError) {
     return (
       <FullScreenCenter>
-        <p className="text-3xl font-black">{errorMessage(fatalError)}</p>
-        <Link href="/host" className="btn btn-primary h-14 px-8 text-xl">رجوع</Link>
+        <p className="font-display text-4xl">{errorMessage(fatalError)}</p>
+        <Link href="/host" className="btn btn-primary h-16 px-8 text-2xl">رجوع</Link>
       </FullScreenCenter>
     );
   }
-  if (!view) return <FullScreenCenter><Spinner className="size-10 text-sun" /></FullScreenCenter>;
+  if (!view) return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
 
   return (
-    <main className="flex h-dvh flex-col gap-[2.5vh] overflow-hidden px-[3.5vw] py-[3vh]">
+    <main className="relative flex h-dvh flex-col gap-[2.5vh] overflow-hidden px-[3.5vw] py-[3vh]">
       <ConnectionBanner show={!connected} />
       <PortraitPreloader personIds={PEOPLE.map((p) => p.id)} />
+      {view.status === "LOBBY" && <PeekingFriends />}
 
       {/* Header */}
-      <header className="flex shrink-0 items-center justify-between">
-        <Brand className="text-[4vh]" />
+      <header className="relative z-10 flex shrink-0 items-center justify-between">
+        <Brand className="text-[5vh]" />
         <div className="flex items-center gap-[1vw]">
           {view.status !== "LOBBY" && (
-            <span className="rounded-full bg-panel-2 px-[1.2vw] py-[0.5vh] text-[2.4vh] font-bold text-mute">
-              رمز الدخول <span dir="ltr" className="font-black text-paper tabular-nums">{view.code}</span>
+            <span className="chunk-sm bg-card px-[1.2vw] pb-[0.2vh] pt-[0.9vh] font-display text-[2.8vh] leading-none">
+              رمز الدخول <span dir="ltr" className="tabular-nums">{view.code}</span>
             </span>
           )}
           <button
             onClick={() => setShowPlayers(true)}
-            className="btn btn-ghost h-[5vh] rounded-full px-[1.2vw] text-[2.2vh]"
+            className="btn btn-ghost h-[5.4vh] px-[1.2vw] text-[2.6vh]"
           >
             اللاعبين
           </button>
@@ -140,7 +142,7 @@ function HostGame({ creds }: { creds: HostCreds }) {
               if (document.fullscreenElement) void document.exitFullscreen();
               else void document.documentElement.requestFullscreen?.().catch(() => {});
             }}
-            className="btn btn-ghost h-[5vh] rounded-full px-[1.2vw] text-[2.2vh]"
+            className="btn btn-ghost h-[5.4vh] px-[1.2vw] text-[2.6vh]"
             title="ملء الشاشة"
           >
             ⛶
@@ -156,19 +158,19 @@ function HostGame({ creds }: { creds: HostCreds }) {
       {view.status === "FINISHED" && <HostFinished view={view} />}
 
       {/* Controls */}
-      <footer className="flex h-[10vh] shrink-0 items-center justify-between gap-[2vw]">
+      <footer className="relative z-10 flex h-[10vh] shrink-0 items-center justify-between gap-[2vw]">
         <div className="min-w-0 flex-1">
           {view.status === "QUESTION" && view.question && (
             <AnswerProgress answered={view.question.answeredCount} eligible={view.question.eligibleCount} />
           )}
-          {actionError && <p className="text-[2.4vh] font-bold text-rose">{actionError}</p>}
+          {actionError && <p className="text-[2.4vh] font-bold text-pink">{actionError}</p>}
         </div>
         {primary && (
           <button
             onClick={() => void runAction(primary.action)}
             disabled={busy || primary.disabled}
-            className={`btn btn-primary h-[9vh] min-w-[24vw] px-[2.4vw] text-[4vh] ${
-              primary.pulse && !busy ? "anim-pulse" : ""
+            className={`btn btn-primary btn-tv h-[9.5vh] min-w-[24vw] px-[2.4vw] text-[4.6vh] ${
+              primary.pulse && !busy ? "anim-nudge" : ""
             }`}
           >
             {busy && <Spinner className="size-[3.4vh]" />}
@@ -176,7 +178,7 @@ function HostGame({ creds }: { creds: HostCreds }) {
           </button>
         )}
         {view.status === "FINISHED" && (
-          <Link href="/host" className="btn btn-ghost h-[8vh] px-[2.4vw] text-[3.2vh]">
+          <Link href="/host" className="btn btn-ghost btn-tv h-[8vh] px-[2.4vw] text-[3.4vh]">
             لعبة جديدة
           </Link>
         )}

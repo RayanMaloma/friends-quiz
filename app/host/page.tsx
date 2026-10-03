@@ -6,7 +6,7 @@ import Link from "next/link";
 import { api, errorMessage } from "@/lib/client/api";
 import { hostStore, type HostCreds } from "@/lib/client/storage";
 import type { HostView } from "@/lib/types";
-import { Brand, Spinner } from "@/components/ui";
+import { Brand, Decor, Spinner } from "@/components/ui";
 
 export default function HostEntryPage() {
   const router = useRouter();
@@ -48,31 +48,32 @@ export default function HostEntryPage() {
   }
 
   return (
-    <main className="safe-pad flex min-h-dvh flex-col items-center justify-center gap-10 text-center">
-      <Brand className="anim-pop text-7xl" />
-      <div className="anim-rise flex w-full max-w-md flex-col gap-4">
+    <main className="safe-pad relative flex min-h-dvh flex-col items-center justify-center gap-10 overflow-hidden text-center">
+      <Decor />
+      <Brand className="anim-pop relative text-8xl" />
+      <div className="anim-rise relative flex w-full max-w-md flex-col gap-5">
         {checking ? (
-          <Spinner className="mx-auto size-8 text-sun" />
+          <Spinner className="mx-auto size-8 text-ink" />
         ) : (
           <>
             {resumable && (
-              <Link href={`/host/${resumable.sessionId}`} className="btn btn-primary h-16 text-2xl">
+              <Link href={`/host/${resumable.sessionId}`} className="btn btn-primary h-20 text-3xl">
                 كمّل اللعبة ({resumable.code})
               </Link>
             )}
             <button
               onClick={createGame}
               disabled={creating}
-              className={`btn h-16 text-2xl ${resumable ? "btn-ghost" : "btn-primary"}`}
+              className={`btn h-20 text-3xl ${resumable ? "btn-ghost" : "btn-primary"}`}
             >
               {creating ? <Spinner /> : null}
               {resumable ? "لعبة جديدة" : "إنشاء لعبة"}
             </button>
           </>
         )}
-        {error && <p className="font-bold text-rose">{error}</p>}
+        {error && <p className="font-bold text-pink">{error}</p>}
       </div>
-      <p className="max-w-md text-mute">
+      <p className="relative max-w-md font-bold text-mute">
         افتح هذي الصفحة على اللابتوب الموصول بالتلفزيون. الجوالات تدخل من صفحة «دخول لعبة».
       </p>
     </main>

@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -71,15 +71,16 @@ async function createLocalDb(): Promise<LocalDb> {
   const dataDir = path.join(process.cwd(), ".local-db");
   const pg = new PGlite(dataDir);
   await pg.waitReady;
-  const exists = await pg.query<{ t: string | null }>(
-    "select to_regclass('public.game_sessions')::text as t",
+  // Apply every migration file once, in order (all files are also re-runnable).
+  await pg.exec("create table if not exists _local_migrations (name text primary key)");
+  const applied = new Set(
+    (await pg.query<{ name: string }>("select name from _local_migrations")).rows.map((r) => r.name),
   );
-  if (!exists.rows[0]?.t) {
-    const sql = await readFile(
-      path.join(process.cwd(), "supabase", "migrations", "20261004000000_init.sql"),
-      "utf8",
-    );
-    await pg.exec(sql);
+  const dir = path.join(process.cwd(), "supabase", "migrations");
+  for (const file of (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort()) {
+    if (applied.has(file)) continue;
+    await pg.exec(await readFile(path.join(dir, file), "utf8"));
+    await pg.query("insert into _local_migrations (name) values ($1)", [file]);
   }
   return {
     async call<T>(fn: string, params: Record<string, unknown>) {

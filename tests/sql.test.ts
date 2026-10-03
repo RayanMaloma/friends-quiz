@@ -33,13 +33,22 @@ async function setupGame() {
   expect(created.code).toMatch(/^\d{4}$/);
   const code = created.code;
   for (const person of ["khalid", "rayan", "chinese"]) {
-    const j = await call<{ ok: boolean }>("fq_join_game", {
-      p_code: code, p_person_id: person, p_token_hash: `tok-${person}`,
-    });
+    const j = await join(code, `Name ${person}`, person, `tok-${person}`);
     expect(j.ok).toBe(true);
   }
+  // A regular player who is not one of the fact owners.
+  expect((await join(code, "Guest", null, "tok-guest")).ok).toBe(true);
   return { sessionId: created.session_id, code };
 }
+
+const join = (code: string, name: string, person: string | null, token: string) =>
+  call<{ ok: boolean; error?: string; player_id?: string }>("fq_join_game", {
+    p_code: code, p_display_name: name, p_person_id: person, p_token_hash: token,
+  });
+
+const MIGRATIONS = ["20261004000000_init.sql", "20261004010000_open_players.sql"].map((f) =>
+  readFileSync(path.join(__dirname, "..", "supabase/migrations", f), "utf8"),
+);
 
 const transition = (sessionId: string, action: string, expected: number, hash = HOST) =>
   call<{ ok: boolean; changed?: boolean; error?: string }>("fq_host_transition", {
@@ -60,16 +69,15 @@ const snapshot = (sessionId: string) =>
 
 beforeAll(async () => {
   pg = new PGlite();
-  await pg.exec(readFileSync(path.join(__dirname, "..", "supabase/migrations/20261004000000_init.sql"), "utf8"));
+  for (const sql of MIGRATIONS) await pg.exec(sql);
 });
 
 describe("game integrity (SQL)", () => {
   it("prevents duplicate identities", async () => {
     const { code } = await setupGame();
-    const dup = await call<{ ok: boolean; error: string }>("fq_join_game", {
-      p_code: code, p_person_id: "khalid", p_token_hash: "other-device",
-    });
-    expect(dup).toEqual({ ok: false, error: "IDENTITY_TAKEN" });
+    expect(await join(code, "Someone else", "khalid", "other-device")).toEqual({ ok: false, error: "IDENTITY_TAKEN" });
+    expect(await join(code, "  guest ", null, "other-device")).toEqual({ ok: false, error: "NAME_TAKEN" });
+    expect(await join(code, "   ", null, "other-device")).toEqual({ ok: false, error: "BAD_NAME" });
     const lookup = await call<{ taken_person_ids: string[] }>("fq_lookup_game", { p_code: code });
     expect(lookup.taken_person_ids.sort()).toEqual(["chinese", "khalid", "rayan"]);
     const bad = await call<{ ok: boolean; error: string }>("fq_lookup_game", { p_code: "0000" });
@@ -118,7 +126,7 @@ describe("game integrity (SQL)", () => {
     let s = await snapshot(sessionId);
     expect(s.session.status).toBe("REVEAL");
     expect(s.rounds[0].status).toBe("REVEALED");
-    expect(s.rounds[0].eligible_count).toBe(2); // rayan + chinese
+    expect(s.rounds[0].eligible_count).toBe(3); // rayan + chinese + unlinked guest
     expect(s.answers).toHaveLength(1);
 
     // Late answer after reveal is rejected.
@@ -149,16 +157,41 @@ describe("game integrity (SQL)", () => {
     expect(s.session.status).toBe("FINISHED");
   });
 
-  it("host release lets a new device claim the identity mid-game", async () => {
+  it("host release lets a new device take over a player mid-game (same name, same score)", async () => {
     const { sessionId, code } = await setupGame();
     await call("fq_start_game", { p_session_id: sessionId, p_host_token_hash: HOST, p_rounds: rounds });
-    await call("fq_release_player", { p_session_id: sessionId, p_host_token_hash: HOST, p_person_id: "chinese" });
-    const j = await call<{ ok: boolean }>("fq_join_game", {
-      p_code: code, p_person_id: "chinese", p_token_hash: "new-device",
-    });
+    const before = await call<{ players: { id: string; person_id: string | null }[] }>("fq_get_snapshot", { p_session_id: sessionId });
+    const chinese = before.players.find((p) => p.person_id === "chinese")!;
+    await call("fq_release_player", { p_session_id: sessionId, p_host_token_hash: HOST, p_player_id: chinese.id });
+    const j = await join(code, "name CHINESE", null, "new-device");
     expect(j.ok).toBe(true);
+    expect(j.player_id).toBe(chinese.id); // same player row, keeps owner link + score
     // Old device token no longer works.
     expect((await answer(sessionId, "chinese", 0, "khalid")).error).toBe("NOT_A_PLAYER");
+  });
+
+  it("supports 12+ players; non-owners answer every fact, owners never answer their own", async () => {
+    const created = await call<{ session_id: string; code: string }>("fq_create_game", { p_host_token_hash: HOST });
+    const { session_id: sessionId, code } = created;
+    const owners = ["khalid", "rayan", "chinese"];
+    for (const o of owners) expect((await join(code, `Owner ${o}`, o, `tok-${o}`)).ok).toBe(true);
+    const guests = Array.from({ length: 10 }, (_, i) => `g${i}`);
+    for (const g of guests) expect((await join(code, `Guest ${g}`, null, `tok-${g}`)).ok).toBe(true);
+    await call("fq_start_game", { p_session_id: sessionId, p_host_token_hash: HOST, p_rounds: rounds });
+
+    for (const [roundIndex, owner] of [[0, "khalid"], [1, "rayan"]] as const) {
+      for (const g of guests) expect((await answer(sessionId, g, roundIndex, owner)).ok).toBe(true);
+      for (const o of owners) {
+        const res = await answer(sessionId, o, roundIndex, o === "khalid" ? "rayan" : "khalid");
+        if (o === owner) expect(res.error).toBe("OWNER_CANNOT_ANSWER");
+        else expect(res.ok).toBe(true);
+      }
+      await transition(sessionId, "reveal", roundIndex);
+      const s = await snapshot(sessionId);
+      expect(s.rounds[roundIndex].eligible_count).toBe(12); // 13 players - 1 owner
+      expect(s.answers.length).toBe(12 * (roundIndex + 1));
+      if (roundIndex === 0) await transition(sessionId, "next", 0);
+    }
   });
 
   it("leave is only allowed in the lobby", async () => {
@@ -175,9 +208,8 @@ describe("migration on a Supabase-like database", () => {
   it("applies cleanly when anon/authenticated/service_role exist, and is re-runnable", async () => {
     const db = new PGlite();
     await db.exec("create role anon; create role authenticated; create role service_role;");
-    const sql = readFileSync(path.join(__dirname, "..", "supabase/migrations/20261004000000_init.sql"), "utf8");
-    await db.exec(sql);
-    await db.exec(sql); // idempotent re-run
+    for (const sql of MIGRATIONS) await db.exec(sql);
+    for (const sql of MIGRATIONS) await db.exec(sql); // idempotent re-run (in order)
     const anonExec = await db.query<{ ok: boolean }>(
       "select has_function_privilege('anon', 'public.fq_get_snapshot(uuid)', 'execute') as ok",
     );
@@ -190,5 +222,9 @@ describe("migration on a Supabase-like database", () => {
     expect(anonExec.rows[0].ok).toBe(false);
     expect(serviceExec.rows[0].ok).toBe(true);
     expect(anonSelect.rows[0].ok).toBe(false);
+    const joinExec = await db.query<{ ok: boolean }>(
+      "select has_function_privilege('anon', 'public.fq_join_game(text, text, text, text)', 'execute') as anon_ok, has_function_privilege('service_role', 'public.fq_join_game(text, text, text, text)', 'execute') as ok",
+    );
+    expect(joinExec.rows[0]).toEqual({ anon_ok: false, ok: true });
   });
 });

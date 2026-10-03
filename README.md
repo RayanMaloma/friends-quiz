@@ -1,7 +1,8 @@
 # عن مين؟ — Friends Quiz
 
-A private, Kahoot-style party game for the six of us. A fact appears on the TV,
-everyone guesses on their phone who it's about, the TV reveals the answer, shows
+A private, Kahoot-style party game. The facts belong to six friends (`data/people.json`),
+but **any number of people can play** (tested with 13). A fact appears on the TV,
+everyone guesses on their phone which of the six it's about, the TV reveals the answer, shows
 how the group voted, and keeps the leaderboard.
 
 **The TV is the game. Phones are controllers.** Phones never show the answer,
@@ -43,15 +44,26 @@ Phone / TV ──POST /api/guest|/api/host──▶ Next.js route ──rpc(serv
 Fact order: a **balanced shuffle** (`lib/game/shuffle.ts`) generated once at "Start" and stored in
 `game_rounds`. It never puts the same person's facts back-to-back when that's mathematically possible.
 
+### Players vs. fact owners
+
+- `people.json` = the six fact owners = the possible answers. They are **not** the player list.
+- Joining a game: enter a display name, then answer «عندك معلومات في اللعبة؟» — pick your name if you
+  are one of the six, or «لا، أنا بس ألعب». Linked players never get their own facts and are not counted
+  in that fact's "X / Y answered"; everyone else answers every fact.
+- Display names are unique per game (case-insensitive); each fact owner can be linked to one device.
+- Lobby/join show **no portraits** — they first appear on the TV at the reveal (and for a winning fact
+  owner). The only exception is the decorative "peeking friends" on the TV lobby: one friend at a time
+  sneaks in from an edge, behind the lobby content so it never covers the code/QR. Disabled for
+  `prefers-reduced-motion`.
+
 ### Behaviour decisions
 
 - **Late joiners**: anyone can join until the game is finished. They start at 0, and count toward the
   "X / Y answered" total from the moment they join. Past rounds are unaffected (the eligible count of each
   round is snapshotted at reveal).
 - **Fact owner** (connected or not) is never eligible for their own fact and isn't counted in "X / Y".
-- **Duplicate identity**: a name can be taken by one device only. If a phone dies or someone cleared their
-  browser, the host opens **اللاعبين** on the TV and presses **فك الربط** — that name becomes pickable
-  again on a new device and keeps its score.
+- **Lost phone**: the host opens **اللاعبين** on the TV and presses **فك الربط** on that player; the
+  player then rejoins on a new device by typing the **same name** and keeps their score and owner link.
 - In the lobby a guest can tap **مو أنت؟ غيّر الاسم** to switch names.
 - TV keyboard shortcut: **Space / Enter / ←** triggers the main button.
 
@@ -70,8 +82,9 @@ npm run dev
 ### Supabase
 
 1. Create a project at https://supabase.com (free tier is fine).
-2. **SQL Editor** → paste the whole file `supabase/migrations/20261004000000_init.sql` → **Run**.
-   (It is safe to run again.) With the Supabase CLI instead: `supabase db push`.
+2. **SQL Editor** → run each file in `supabase/migrations/` **in order**:
+   `20261004000000_init.sql`, then `20261004010000_open_players.sql`.
+   (Both are safe to run again.) With the Supabase CLI instead: `supabase db push`.
 3. **Project Settings → API / API Keys** and copy into `.env.local`:
 
 | Variable | Where | Notes |

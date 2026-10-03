@@ -5,7 +5,6 @@ import { fail, getSnapshot, handleError, ok, readBody, type RpcResult } from "@/
 import { hashToken, isTokenShaped, isUuid, newToken } from "@/lib/server/tokens";
 import { balancedShuffle } from "@/lib/game/shuffle";
 import { buildHostView } from "@/lib/game/views";
-import { isKnownPerson } from "@/lib/people";
 
 export const dynamic = "force-dynamic";
 
@@ -71,11 +70,11 @@ export async function POST(req: Request) {
     }
 
     if (action === "release") {
-      if (!isKnownPerson(body.personId)) return fail("BAD_REQUEST");
+      if (!isUuid(body.playerId)) return fail("BAD_REQUEST");
       const res = await rpc<RpcResult>("fq_release_player", {
         p_session_id: sessionId,
         p_host_token_hash: hostHash,
-        p_person_id: body.personId,
+        p_player_id: body.playerId,
       });
       if (!res.ok) return fail(res.error, res.error === "FORBIDDEN" ? 403 : 400);
       await notifyGame(sessionId);
