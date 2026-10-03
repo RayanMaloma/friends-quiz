@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0e0c13;
+  --color-panel: #1a1722;
+  --color-panel-2: #232030;
+  --color-line: #2f2b3b;
+  --color-paper: #f7f3e8;
+  --color-mute: #9c95ab;
+  --color-sun: #ffd23f;
+  --color-sun-deep: #f5b700;
+  --color-sun-ink: #1d1600;
+  --color-mint: #3ddc97;
+  --color-rose: #ff5d73;
+  --font-sans: var(--font-cairo), system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Comic halftone + soft top spotlight. Matches the comic-style portraits. */
+.stage-bg {
+  background-color: var(--color-ink);
+  background-image:
+    radial-gradient(ellipse 70% 55% at 50% -10%, rgb(255 210 63 / 0.13), transparent 70%),
+    radial-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1.4px);
+  background-size: 100% 100%, 14px 14px;
+}
+
+.safe-pad {
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.sticky-bottom-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  border-radius: 1.1rem;
+  font-weight: 800;
+  transition: transform 120ms ease, background-color 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
+  user-select: none;
+  touch-action: manipulation;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(2px) scale(0.99);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-sun);
+  color: var(--color-sun-ink);
+  box-shadow: 0 6px 0 var(--color-sun-deep), 0 14px 40px rgb(255 210 63 / 0.18);
+}
+.btn-primary:active:not(:disabled) {
+  box-shadow: 0 3px 0 var(--color-sun-deep);
+}
+.btn-ghost {
+  background: var(--color-panel-2);
+  color: var(--color-paper);
+  border: 1px solid var(--color-line);
+}
+
+/* Motion — kept to transforms/opacity for reliability. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(40px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.6); }
+  70%  { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes portrait-in {
+  0%   { opacity: 0; transform: translateY(18%) scale(0.92); filter: brightness(2.2) contrast(0.6); }
+  60%  { opacity: 1; filter: brightness(1.1); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+@keyframes disc-in {
+  0%   { transform: scale(0); }
+  70%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes soft-pulse {
+  0%, 100% { box-shadow: 0 6px 0 var(--color-sun-deep), 0 0 0 0 rgb(255 210 63 / 0.45); }
+  50%      { box-shadow: 0 6px 0 var(--color-sun-deep), 0 0 0 18px rgb(255 210 63 / 0); }
+}
+@keyframes confetti-fall {
+  0%   { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--drift, 0px), 110vh, 0) rotate(var(--spin, 540deg)); opacity: 0.9; }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+
+.anim-rise { animation: rise-in 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-pop { animation: pop-in 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-fade { animation: fade-in 500ms ease both; }
+.anim-portrait { animation: portrait-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-disc { animation: disc-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-bar { transform-origin: right center; animation: bar-grow 800ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-pulse { animation: soft-pulse 1.6s ease-in-out infinite; }
+.anim-float { animation: float-y 3s ease-in-out infinite; }
+.anim-spin-slow { animation: spin-slow 40s linear infinite; }
+
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 18px;
+  border-radius: 2px;
+  animation: confetti-fall linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .confetti-piece { display: none; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

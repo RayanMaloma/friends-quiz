@@ -1,0 +1,32 @@
+[
+    {
+      "id": "khalid",
+      "name": "خالد",
+      "image": "/people/khalid.png"
+    },
+    {
+      "id": "chinese",
+      "name": "الصيني",
+      "image": "/people/chinese.png"
+    },
+    {
+      "id": "abu-qasim",
+      "name": "ابو قاسم",
+      "image": "/people/abu-qasim.png"
+    },
+    {
+      "id": "fahad-alnahid",
+      "name": "فهد الناهض",
+      "image": "/people/fahad-alnahid.png"
+    },
+    {
+      "id": "qadibi",
+      "name": "قضيبي 🍆",
+      "image": "/people/qadibi.png"
+    },
+    {
+      "id": "rayan",
+      "name": "ريان",
+      "image": "/people/rayan.png"
+    }
+  ]
