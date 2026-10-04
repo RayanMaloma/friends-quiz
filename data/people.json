@@ -33,5 +33,15 @@
       "id": "yazid",
       "name": "يزيد",
       "image": "/people/yazid.png"
+    },
+    {
+      "id": "fahad-aldaham",
+      "name": "فهد الدحام",
+      "image": "/people/fahad-aldaham.png"
+    },
+    {
+      "id": "ibrahim-altamimi",
+      "name": "ابراهيم التميمي",
+      "image": "/people/ibrahim-altamimi.png"
     }
   ]
