@@ -17,8 +17,8 @@ export default function JoinPage() {
 }
 
 type Lookup = { sessionId: string; code: string; takenPersonIds: string[] };
-/** "none" = regular player; otherwise the people.json id this player is linked to. */
-type OwnerChoice = "none" | string;
+/** null = regular player; otherwise the people.json id this player is linked to. */
+type OwnerChoice = string | null;
 
 function Join() {
   const router = useRouter();
@@ -28,7 +28,7 @@ function Join() {
   const [code, setCode] = useState(codeParam);
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [name, setName] = useState("");
-  const [owner, setOwner] = useState<OwnerChoice>("none");
+  const [owner, setOwner] = useState<OwnerChoice>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resume, setResume] = useState<PlayerCreds | null>(null);
@@ -66,7 +66,7 @@ function Join() {
         if (state.error === "NOT_A_PLAYER") playerStore.clear(existing.sessionId);
       }
       setLookup({ sessionId: res.sessionId, code: value, takenPersonIds: res.takenPersonIds });
-      setOwner((o) => (o !== "none" && res.takenPersonIds.includes(o) ? "none" : o));
+      setOwner((o) => (o && res.takenPersonIds.includes(o) ? null : o));
     },
     [router],
   );
@@ -99,7 +99,7 @@ function Join() {
     setError(null);
     const res = await api<{ sessionId: string; playerToken: string; name: string; personId: string | null }>(
       "/api/guest",
-      { action: "join", code: lookup.code, name: trimmed, personId: owner === "none" ? null : owner },
+      { action: "join", code: lookup.code, name: trimmed, personId: owner },
     );
     if (!res.ok) {
       setBusy(false);
@@ -174,14 +174,6 @@ function Join() {
               );
             })}
           </div>
-          <button
-            onClick={() => setOwner("none")}
-            className={`chunk-sm h-16 font-display text-xl leading-none transition-transform ${
-              owner === "none" ? "rotate-1 bg-sky text-white" : "bg-card"
-            }`}
-          >
-            {owner === "none" && "✓ "}لا، أنا بس ألعب 🎮
-          </button>
         </section>
 
         <div className="sticky-bottom-safe fixed inset-x-0 bottom-0 bg-gradient-to-t from-cream via-cream/95 to-transparent px-4 pt-8">
