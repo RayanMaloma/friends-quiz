@@ -18,7 +18,7 @@ export default function JoinPage() {
 
 type Lookup = { sessionId: string; code: string; takenPersonIds: string[] };
 /** "none" = regular player; otherwise the people.json id this player is linked to. */
-type OwnerChoice = "none" | string | null;
+type OwnerChoice = "none" | string;
 
 function Join() {
   const router = useRouter();
@@ -28,7 +28,7 @@ function Join() {
   const [code, setCode] = useState(codeParam);
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [name, setName] = useState("");
-  const [owner, setOwner] = useState<OwnerChoice>(null);
+  const [owner, setOwner] = useState<OwnerChoice>("none");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resume, setResume] = useState<PlayerCreds | null>(null);
@@ -66,7 +66,7 @@ function Join() {
         if (state.error === "NOT_A_PLAYER") playerStore.clear(existing.sessionId);
       }
       setLookup({ sessionId: res.sessionId, code: value, takenPersonIds: res.takenPersonIds });
-      setOwner((o) => (o && o !== "none" && res.takenPersonIds.includes(o) ? null : o));
+      setOwner((o) => (o !== "none" && res.takenPersonIds.includes(o) ? "none" : o));
     },
     [router],
   );
@@ -91,7 +91,7 @@ function Join() {
   }, [codeParam, doLookup]);
 
   const trimmed = name.trim();
-  const canJoin = !!lookup && trimmed.length > 0 && owner !== null && !busy;
+  const canJoin = !!lookup && trimmed.length > 0 && !busy;
 
   async function join() {
     if (!lookup || !canJoin) return;
@@ -189,7 +189,7 @@ function Join() {
             {error && <p className="text-center font-bold text-pink">{error}</p>}
             <button onClick={join} disabled={!canJoin} className="btn btn-primary h-20 w-full text-3xl">
               {busy && <Spinner />}
-              {!trimmed ? "اكتب اسمك" : owner === null ? "اختار من فوق" : "يلا ندخل! 🚀"}
+              {!trimmed ? "اكتب اسمك" : "يلا ندخل! 🚀"}
             </button>
           </div>
         </div>
