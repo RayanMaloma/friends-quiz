@@ -37,7 +37,6 @@ export function PeekingFriends() {
   const [current, setCurrent] = useState<Appearance | null>(null);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let timer: ReturnType<typeof setTimeout>;
     let lastPerson = "";
     let lastVariant = "";
@@ -58,7 +57,7 @@ export function PeekingFriends() {
         key,
         personId: person.id,
         variant,
-        style: { ...variant.place(), animationDuration: `${variant.durationMs}ms` } as CSSProperties,
+        style: { ...variant.place(), "--peek-duration": `${variant.durationMs}ms` } as CSSProperties,
       });
       // Hide after the animation, then wait 3–6s before the next friend.
       timer = setTimeout(() => {

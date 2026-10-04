@@ -195,6 +195,7 @@ body {
   height: var(--h);
   aspect-ratio: 3 / 4;
   will-change: transform;
+  animation-duration: var(--peek-duration);
   animation-fill-mode: both;
   animation-iteration-count: 1;
 }
@@ -265,5 +266,10 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .peek-layer { display: none; }
+  /* Keep the lobby reveal visible even when the global reduced-motion rule
+     shortens other animations to 1ms. The portraits remain decorative and
+     appear one at a time behind all interactive lobby content. */
+  .peek {
+    animation-duration: var(--peek-duration) !important;
+  }
 }
