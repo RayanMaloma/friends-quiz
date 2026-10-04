@@ -11,7 +11,7 @@ import { Confetti, NameBadge } from "@/components/ui";
 
 // ---------------------------------------------------------------------------
 // LOBBY — room code, big QR right under it, live list of player names.
-// No portraits here: nobody gets a preview of the six people.
+// No portraits here: nobody gets a preview of the fact owners.
 // ---------------------------------------------------------------------------
 
 export function HostLobby({ view }: { view: HostView }) {

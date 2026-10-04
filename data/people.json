@@ -28,5 +28,10 @@
       "id": "rayan",
       "name": "ريان",
       "image": "/people/rayan.png"
+    },
+    {
+      "id": "yazid",
+      "name": "يزيد",
+      "image": "/people/yazid.png"
     }
   ]
