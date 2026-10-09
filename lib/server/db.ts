@@ -15,16 +15,25 @@ import path from "node:path";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+/** NEXT_PUBLIC_FQ_LOCAL_DB=1 forces the local database even if Supabase is configured (dev only). */
+const FORCE_LOCAL = process.env.NEXT_PUBLIC_FQ_LOCAL_DB === "1" && !process.env.VERCEL;
 
-export const isSupabaseConfigured = Boolean(SUPABASE_URL && SERVICE_KEY);
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SERVICE_KEY) && !FORCE_LOCAL;
 
 export class ConfigError extends Error {}
+
+/** The database exists but doesn't have the latest migration yet. */
+export class SchemaError extends Error {}
 
 type Globals = typeof globalThis & {
   __fqAdmin?: SupabaseClient;
   __fqLocalDb?: Promise<LocalDb>;
 };
 const g = globalThis as Globals;
+
+export function localDataDir(): string {
+  return path.join(process.cwd(), ".local-db");
+}
 
 export function getAdminClient(): SupabaseClient {
   if (!isSupabaseConfigured) throw new ConfigError("Supabase is not configured");
@@ -40,7 +49,13 @@ export async function rpc<T = Record<string, unknown>>(
 ): Promise<T> {
   if (isSupabaseConfigured) {
     const { data, error } = await getAdminClient().rpc(fn, params);
-    if (error) throw new Error(`rpc ${fn} failed: ${error.message}`);
+    if (error) {
+      // PostgREST: PGRST202 = function not found (migration not applied yet).
+      if (error.code === "PGRST202" || /could not find the function/i.test(error.message)) {
+        throw new SchemaError(`rpc ${fn} missing: ${error.message}`);
+      }
+      throw new Error(`rpc ${fn} failed: ${error.message}`);
+    }
     return data as T;
   }
   if (process.env.VERCEL) {
@@ -68,8 +83,7 @@ function getLocalDb(): Promise<LocalDb> {
 
 async function createLocalDb(): Promise<LocalDb> {
   const { PGlite } = await import("@electric-sql/pglite");
-  const dataDir = path.join(process.cwd(), ".local-db");
-  const pg = new PGlite(dataDir);
+  const pg = new PGlite(localDataDir());
   await pg.waitReady;
   // Apply every migration file once, in order (all files are also re-runnable).
   await pg.exec("create table if not exists _local_migrations (name text primary key)");

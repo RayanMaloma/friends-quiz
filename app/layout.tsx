@@ -16,8 +16,8 @@ const lalezar = Lalezar({
 });
 
 export const metadata: Metadata = {
-  title: "عن مين؟",
-  description: "لعبة الشلة: خمّن المعلومة عن مين",
+  title: "ألعاب الشلّة",
+  description: "ألعاب جماعية للشلة: التلفزيون يعرض والجوالات تجاوب",
 };
 
 export const viewport: Viewport = {

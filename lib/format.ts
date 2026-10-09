@@ -7,6 +7,23 @@ export function pointsLabel(n: number): string {
   return `${n} نقطة`;
 }
 
+/** Arabic count + noun: سؤال / سؤالين / ٣ أسئلة / ١١ سؤال. */
+export function countLabel(n: number, forms: { one: string; two: string; few: string; many: string }): string {
+  if (n === 1) return forms.one;
+  if (n === 2) return forms.two;
+  if (n >= 3 && n <= 10) return `${n} ${forms.few}`;
+  return `${n} ${forms.many}`;
+}
+
+export const questionsLabel = (n: number) =>
+  n === 0 ? "ولا سؤال" : countLabel(n, { one: "سؤال واحد", two: "سؤالين", few: "أسئلة", many: "سؤال" });
+
+export const peopleLabel = (n: number) =>
+  countLabel(n, { one: "شخص واحد", two: "شخصين", few: "أشخاص", many: "شخص" });
+
+export const playersLabel = (n: number) =>
+  n === 0 ? "ولا لاعب" : countLabel(n, { one: "لاعب واحد", two: "لاعبين", few: "لاعبين", many: "لاعب" });
+
 /**
  * Font size for a fact on the TV. Short facts are huge; long stories get
  * smaller — but still readable from the couch — sized by both width and height.

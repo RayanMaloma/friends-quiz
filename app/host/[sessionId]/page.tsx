@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/client/api";
@@ -8,10 +8,11 @@ import { hostKey, type HostCreds } from "@/lib/client/storage";
 import { useStored } from "@/lib/client/useStored";
 import { useGameSync } from "@/lib/client/useGameSync";
 import { useWakeLock } from "@/lib/client/useWakeLock";
+import { serverOffset, useCountdown } from "@/lib/client/useClock";
 import type { HostView } from "@/lib/types";
-import { PEOPLE } from "@/lib/people";
-import { Brand, ConnectionBanner, Spinner } from "@/components/ui";
-import { PortraitPreloader } from "@/components/PersonImage";
+import { accentStyle } from "@/lib/colors";
+import { ConnectionBanner, Spinner } from "@/components/ui";
+import { Preloader } from "@/components/Media";
 import {
   AnswerProgress,
   HostFinished,
@@ -23,7 +24,7 @@ import {
 import { PlayersPanel } from "@/components/host/PlayersPanel";
 import { PeekingFriends } from "@/components/host/PeekingFriends";
 
-type HostAction = "start" | "reveal" | "leaderboard" | "next" | "finish";
+type HostAction = "start" | "reveal" | "leaderboard" | "next" | "finish" | "end";
 
 export default function HostGamePage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -49,14 +50,14 @@ function HostGame({ creds }: { creds: HostCreds }) {
     () => api<{ view: HostView }>("/api/host", { action: "state", sessionId, hostToken }),
     [sessionId, hostToken],
   );
-  const { view, fatalError, connected, mutate } = useGameSync<HostView>(sessionId, fetchView);
+  const { view, receivedAt, fatalError, connected, mutate } = useGameSync<HostView>(sessionId, fetchView);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showPlayers, setShowPlayers] = useState(false);
 
   const runAction = useCallback(
-    async (action: HostAction) => {
-      if (!view || busy) return;
+    async (action: HostAction): Promise<boolean> => {
+      if (!view || busy) return false;
       setBusy(true);
       setActionError(null);
       const res = await mutate(() =>
@@ -69,6 +70,7 @@ function HostGame({ creds }: { creds: HostCreds }) {
       );
       if (!res.ok) setActionError(errorMessage(res.error));
       setBusy(false);
+      return true;
     },
     [view, busy, mutate, sessionId, hostToken],
   );
@@ -84,6 +86,37 @@ function HostGame({ creds }: { creds: HostCreds }) {
   );
 
   const primary = view ? primaryAction(view) : null;
+
+  // Timer + auto-reveal (time up, or everyone answered). The server ignores a
+  // reveal for a question that already moved on, so a race is harmless.
+  const offset = serverOffset(view?.serverNow, receivedAt);
+  const remaining = useCountdown(view?.status === "QUESTION" ? (view.question?.timer ?? null) : null, offset);
+  const autoRevealed = useRef(-1);
+  const runActionRef = useRef(runAction);
+  useEffect(() => {
+    runActionRef.current = runAction;
+  });
+  const qIndex = view?.status === "QUESTION" && view.question ? view.question.index : null;
+  const q = view?.status === "QUESTION" ? view.question : null;
+  const allAnswered = !!q && q.eligibleCount > 0 && q.answeredCount >= q.eligibleCount;
+  const timeUp = remaining !== null && remaining <= 0;
+  const autoReveal = !!view?.config.settings.autoReveal;
+  // Deps are primitives only, so a refetch (new view object) doesn't restart the delay.
+  useEffect(() => {
+    if (qIndex === null || !autoReveal || busy || autoRevealed.current === qIndex) return;
+    if (!timeUp && !allAnswered) return;
+    const timer = setTimeout(
+      () => {
+        void runActionRef.current("reveal").then((ran) => {
+          if (ran) autoRevealed.current = qIndex;
+        });
+      },
+      timeUp ? 300 : 1500,
+    );
+    return () => clearTimeout(timer);
+  }, [qIndex, autoReveal, timeUp, allAnswered, busy]);
+
+  const peekPeople = useMemo(() => (view ? view.config.people.filter((p) => p.image) : []), [view]);
 
   // Keyboard: Space / Enter / → triggers the primary action (handy on a TV laptop).
   const primaryRef = useRef<() => void>(() => {});
@@ -117,15 +150,23 @@ function HostGame({ creds }: { creds: HostCreds }) {
   if (!view) return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
 
   return (
-    <main className="relative flex h-dvh flex-col gap-[2.5vh] overflow-hidden px-[3.5vw] py-[3vh]">
+    <main
+      className="relative flex h-dvh flex-col gap-[2.5vh] overflow-hidden px-[3.5vw] py-[3vh]"
+      style={accentStyle(view.config.accent)}
+    >
       <ConnectionBanner show={!connected} />
-      <PortraitPreloader personIds={PEOPLE.map((p) => p.id)} />
-      {view.status === "LOBBY" && <PeekingFriends />}
+      <Preloader people={view.config.people} images={view.upcomingImages} />
+      {view.status === "LOBBY" && view.config.settings.lobbyPeek && <PeekingFriends people={peekPeople} />}
 
       {/* Header */}
-      <header className="relative z-10 flex shrink-0 items-center justify-between">
-        <Brand className="text-[5vh]" />
-        <div className="flex items-center gap-[1vw]">
+      <header className="relative z-10 flex shrink-0 items-center justify-between gap-[2vw]">
+        <span className={`min-w-0 truncate font-display text-[4.4vh] leading-none ${view.status === "LOBBY" ? "invisible" : ""}`}>
+          <span className="chunk-sm me-[0.8vw] inline-block -rotate-6 bg-sun px-[0.8vw] pb-[0.2vh] pt-[1vh]">
+            {view.config.emoji}
+          </span>
+          {view.config.title}
+        </span>
+        <div className="flex shrink-0 items-center gap-[1vw]">
           {view.status !== "LOBBY" && (
             <span className="chunk-sm bg-card px-[1.2vw] pb-[0.2vh] pt-[0.9vh] font-display text-[2.8vh] leading-none">
               رمز الدخول <span dir="ltr" className="tabular-nums">{view.code}</span>
@@ -137,6 +178,17 @@ function HostGame({ creds }: { creds: HostCreds }) {
           >
             اللاعبين
           </button>
+          {view.status !== "LOBBY" && view.status !== "FINISHED" && (
+            <button
+              onClick={() => {
+                if (window.confirm("تنهي اللعبة الحين؟ النتائج الحالية بتصير النهائية.")) void runAction("end");
+              }}
+              className="btn btn-ghost h-[5.4vh] px-[1.2vw] text-[2.6vh]"
+              title="إنهاء اللعبة"
+            >
+              إنهاء
+            </button>
+          )}
           <button
             onClick={() => {
               if (document.fullscreenElement) void document.exitFullscreen();
@@ -152,7 +204,7 @@ function HostGame({ creds }: { creds: HostCreds }) {
 
       {/* Stage */}
       {view.status === "LOBBY" && <HostLobby view={view} />}
-      {view.status === "QUESTION" && view.question && <HostQuestion view={view} />}
+      {view.status === "QUESTION" && view.question && <HostQuestion view={view} remaining={remaining} />}
       {view.status === "REVEAL" && view.reveal && <HostReveal view={view} />}
       {view.status === "LEADERBOARD" && <HostLeaderboard view={view} />}
       {view.status === "FINISHED" && <HostFinished view={view} />}
@@ -162,6 +214,9 @@ function HostGame({ creds }: { creds: HostCreds }) {
         <div className="min-w-0 flex-1">
           {view.status === "QUESTION" && view.question && (
             <AnswerProgress answered={view.question.answeredCount} eligible={view.question.eligibleCount} />
+          )}
+          {view.status === "QUESTION" && timeUp && !autoReveal && (
+            <p className="font-display text-[3vh] text-pink">خلص الوقت ⏰</p>
           )}
           {actionError && <p className="text-[2.4vh] font-bold text-pink">{actionError}</p>}
         </div>
@@ -203,14 +258,17 @@ function primaryAction(view: HostView): {
     case "QUESTION": {
       const q = view.question;
       const all = !!q && q.eligibleCount > 0 && q.answeredCount >= q.eligibleCount;
-      return { action: "reveal", label: "إظهار الشخص", pulse: all };
+      return { action: "reveal", label: "إظهار الإجابة", pulse: all };
     }
     case "REVEAL":
-      return { action: "leaderboard", label: "عرض الترتيب" };
+      if (view.isLastQuestion) return { action: "finish", label: "النتائج النهائية 🏆", pulse: true };
+      return view.leaderboardDue
+        ? { action: "leaderboard", label: "عرض الترتيب" }
+        : { action: "next", label: "السؤال التالي" };
     case "LEADERBOARD":
       return view.isLastQuestion
         ? { action: "finish", label: "النتائج النهائية 🏆", pulse: true }
-        : { action: "next", label: "المعلومة التالية" };
+        : { action: "next", label: "السؤال التالي" };
     default:
       return null;
   }

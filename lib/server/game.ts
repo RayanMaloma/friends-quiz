@@ -1,5 +1,5 @@
 import "server-only";
-import { rpc, ConfigError } from "@/lib/server/db";
+import { rpc, ConfigError, SchemaError } from "@/lib/server/db";
 import type { Snapshot } from "@/lib/types";
 
 export type RpcResult = { ok: true; [k: string]: unknown } | { ok: false; error: string };
@@ -31,6 +31,10 @@ export async function readBody(req: Request): Promise<Record<string, unknown>> {
 }
 
 export function handleError(err: unknown) {
+  if (err instanceof SchemaError) {
+    console.error("[schema]", err.message);
+    return fail("SCHEMA_OUTDATED", 500);
+  }
   if (err instanceof ConfigError) {
     console.error("[config]", err.message);
     return fail("SERVER_NOT_CONFIGURED", 500);

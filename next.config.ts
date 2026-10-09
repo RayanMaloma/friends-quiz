@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@electric-sql/pglite"],
   images: {
     qualities: [75],
+    // Portraits shipped in /public/people and uploads served by /api/media.
+    localPatterns: [
+      { pathname: "/people/**", search: "" },
+      { pathname: "/api/media/**", search: "" },
+    ],
   },
 };
 

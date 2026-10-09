@@ -4,8 +4,8 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, errorMessage } from "@/lib/client/api";
 import { playerStore, type PlayerCreds } from "@/lib/client/storage";
-import type { GuestView } from "@/lib/types";
-import { PEOPLE } from "@/lib/people";
+import type { Accent, GuestView } from "@/lib/types";
+import { accentStyle } from "@/lib/colors";
 import { Brand, Decor, Spinner } from "@/components/ui";
 
 export default function JoinPage() {
@@ -16,8 +16,18 @@ export default function JoinPage() {
   );
 }
 
-type Lookup = { sessionId: string; code: string; takenPersonIds: string[] };
-/** null = regular player; otherwise the people.json id this player is linked to. */
+type LookupResponse = {
+  sessionId: string;
+  title: string;
+  emoji: string;
+  accent: Accent;
+  askPerson: boolean;
+  canJoin: boolean;
+  people: { id: string; name: string }[];
+  takenPersonIds: string[];
+};
+type Lookup = LookupResponse & { code: string };
+/** null = regular player; otherwise the id of the game person this player is. */
 type OwnerChoice = string | null;
 
 function Join() {
@@ -42,7 +52,7 @@ function Join() {
       }
       setBusy(true);
       setError(null);
-      const res = await api<{ sessionId: string; takenPersonIds: string[] }>("/api/guest", {
+      const res = await api<LookupResponse>("/api/guest", {
         action: "lookup",
         code: value,
       });
@@ -65,7 +75,17 @@ function Join() {
         }
         if (state.error === "NOT_A_PLAYER") playerStore.clear(existing.sessionId);
       }
-      setLookup({ sessionId: res.sessionId, code: value, takenPersonIds: res.takenPersonIds });
+      setLookup({
+        sessionId: res.sessionId,
+        code: value,
+        title: res.title,
+        emoji: res.emoji,
+        accent: res.accent,
+        askPerson: res.askPerson,
+        canJoin: res.canJoin,
+        people: res.people,
+        takenPersonIds: res.takenPersonIds,
+      });
       setOwner((o) => (o && res.takenPersonIds.includes(o) ? null : o));
     },
     [router],
@@ -99,7 +119,7 @@ function Join() {
     setError(null);
     const res = await api<{ sessionId: string; playerToken: string; name: string; personId: string | null }>(
       "/api/guest",
-      { action: "join", code: lookup.code, name: trimmed, personId: owner },
+      { action: "join", code: lookup.code, name: trimmed, personId: lookup.askPerson ? owner : null },
     );
     if (!res.ok) {
       setBusy(false);
@@ -117,10 +137,10 @@ function Join() {
     router.replace(`/play/${res.sessionId}`);
   }
 
-  // ---- Step 2: name + optional fact-owner link (text only, no portraits) ----
+  // ---- Step 2: name + optional link to one of the game's people (text only, no portraits) ----
   if (lookup) {
     return (
-      <main className="safe-pad mx-auto flex min-h-dvh max-w-lg flex-col gap-6 pb-36">
+      <main className="safe-pad mx-auto flex min-h-dvh max-w-lg flex-col gap-6 pb-36" style={accentStyle(lookup.accent)}>
         <header className="flex items-center justify-between">
           <button onClick={() => setLookup(null)} className="btn btn-ghost h-11 px-4 text-lg">
             رجوع
@@ -129,6 +149,15 @@ function Join() {
             رمز <span dir="ltr">{lookup.code}</span>
           </span>
         </header>
+
+        <p className="chunk-sm anim-pop -rotate-1 self-start bg-sun px-4 pb-1 pt-2 font-display text-2xl">
+          {lookup.emoji} {lookup.title}
+        </p>
+        {!lookup.canJoin && (
+          <p className="chunk-sm bg-pink px-4 py-2 font-bold text-white">
+            اللعبة بدأت والدخول مقفل. إذا كنت داخل قبل، اكتب نفس اسمك.
+          </p>
+        )}
 
         <section className="anim-rise flex flex-col gap-3">
           <label htmlFor="name" className="font-display text-4xl leading-tight">
@@ -149,13 +178,20 @@ function Join() {
           />
         </section>
 
+        {lookup.askPerson && lookup.people.length > 0 && (
         <section className="anim-rise flex flex-col gap-3" style={{ animationDelay: "80ms" }}>
           <div>
-            <h2 className="font-display text-2xl leading-tight">عندك معلومات في اللعبة؟</h2>
-            <p className="text-sm font-bold text-mute">لو أنت واحد منهم اختار اسمك — ما بتجاوب على معلوماتك</p>
+            <h2 className="font-display text-2xl leading-tight">أنت واحد من أصحاب اللعبة؟</h2>
+            <p className="text-sm font-bold text-mute">لو اسمك هنا اختاره — ما بتجاوب على الأسئلة اللي عنك</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {PEOPLE.map((p) => {
+            <button
+              onClick={() => setOwner(null)}
+              className={`chunk-sm col-span-2 h-14 px-3 pt-1 font-display text-xl leading-none ${owner === null ? "bg-sun" : "bg-card"}`}
+            >
+              {owner === null && "✓ "}لا، أنا بس ألعب
+            </button>
+            {lookup.people.map((p) => {
               const taken = lookup.takenPersonIds.includes(p.id);
               const sel = owner === p.id;
               return (
@@ -175,6 +211,7 @@ function Join() {
             })}
           </div>
         </section>
+        )}
 
         <div className="sticky-bottom-safe fixed inset-x-0 bottom-0 bg-gradient-to-t from-cream via-cream/95 to-transparent px-4 pt-8">
           <div className="mx-auto flex max-w-lg flex-col gap-2">

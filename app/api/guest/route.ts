@@ -3,7 +3,8 @@ import { notifyGame } from "@/lib/server/broadcast";
 import { fail, getSnapshot, handleError, ok, readBody, type RpcResult } from "@/lib/server/game";
 import { hashToken, isTokenShaped, isUuid, newToken } from "@/lib/server/tokens";
 import { buildGuestView } from "@/lib/game/views";
-import { isKnownPerson } from "@/lib/people";
+import { isValidId } from "@/lib/game/doc";
+import type { AnswerValue } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,21 @@ function isRoomCode(v: unknown): v is string {
   return typeof v === "string" && /^[0-9]{4}$/.test(v);
 }
 
+/** Shape check only; the database checks it against the round. */
+function cleanAnswer(v: unknown): AnswerValue | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (isValidId(o.option)) return { option: o.option };
+  if (typeof o.text === "string") {
+    const text = o.text.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim();
+    return text.length >= 1 && [...text].length <= 80 ? { text } : null;
+  }
+  if (typeof o.number === "number" && Number.isFinite(o.number) && Math.abs(o.number) < 1e12) {
+    return { number: o.number };
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await readBody(req);
@@ -27,16 +43,26 @@ export async function POST(req: Request) {
       if (!isRoomCode(body.code)) return fail("GAME_NOT_FOUND", 404);
       const res = await rpc<RpcResult>("fq_lookup_game", { p_code: body.code });
       if (!res.ok) return fail(res.error, 404);
-      return ok({ sessionId: res.session_id, status: res.status, takenPersonIds: res.taken_person_ids });
+      return ok({
+        sessionId: res.session_id,
+        status: res.status,
+        title: res.title,
+        emoji: res.emoji,
+        accent: res.accent,
+        askPerson: res.ask_person,
+        canJoin: res.can_join,
+        people: res.people,
+        takenPersonIds: res.taken_person_ids,
+      });
     }
 
     if (action === "join") {
       if (!isRoomCode(body.code)) return fail("GAME_NOT_FOUND", 404);
       const name = cleanName(body.name);
       if (!name) return fail("BAD_NAME");
-      // Optional link to a fact owner (people.json id). null = regular player.
+      // Optional link to one of the game's people. null = regular player.
       const personId = body.personId ?? null;
-      if (personId !== null && !isKnownPerson(personId)) return fail("BAD_REQUEST");
+      if (personId !== null && !isValidId(personId)) return fail("BAD_REQUEST");
       const playerToken = newToken();
       const res = await rpc<RpcResult>("fq_join_game", {
         p_code: body.code,
@@ -74,15 +100,16 @@ export async function POST(req: Request) {
     if (action === "state") return await respondWithState();
 
     if (action === "answer") {
-      const { roundIndex, personId } = body;
-      if (typeof roundIndex !== "number" || !Number.isInteger(roundIndex) || !isKnownPerson(personId)) {
+      const { roundIndex } = body;
+      const value = cleanAnswer(body.value);
+      if (typeof roundIndex !== "number" || !Number.isInteger(roundIndex) || !value) {
         return fail("BAD_REQUEST");
       }
       const res = await rpc<RpcResult>("fq_submit_answer", {
         p_session_id: sessionId,
         p_token_hash: tokenHash,
         p_round_index: roundIndex,
-        p_chosen_person_id: personId,
+        p_value: value,
       });
       if (!res.ok) {
         // ROUND_CLOSED etc: the client just resyncs to the authoritative state.

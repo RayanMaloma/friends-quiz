@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
-import { PEOPLE } from "@/lib/people";
-import { Portrait } from "@/components/PersonImage";
+import type { Person } from "@/lib/types";
+import { Portrait } from "@/components/Media";
 
 /**
  * TV lobby only: every few seconds one of the friends sneaks into the screen
@@ -31,9 +31,10 @@ const VARIANTS: Variant[] = [
   { cls: "peek-side", durationMs: 3500, place: () => ({ top: `${rand(4, 16)}vh`, "--h": `${rand(38, 44)}vh` }) },
 ] as const;
 
-type Appearance = { key: number; personId: string; variant: Variant; style: CSSProperties };
+type Appearance = { key: number; person: Person; variant: Variant; style: CSSProperties };
 
-export function PeekingFriends() {
+/** `people` should only contain people with a portrait. */
+export function PeekingFriends({ people }: { people: Person[] }) {
   const [current, setCurrent] = useState<Appearance | null>(null);
 
   useEffect(() => {
@@ -48,14 +49,15 @@ export function PeekingFriends() {
     };
 
     const showNext = () => {
-      const person = pick(PEOPLE, (p) => p.id === lastPerson);
+      if (people.length === 0) return;
+      const person = pick(people, (p) => p.id === lastPerson);
       const variant = pick(VARIANTS, (v) => v.cls === lastVariant);
       lastPerson = person.id;
       lastVariant = variant.cls;
       key += 1;
       setCurrent({
         key,
-        personId: person.id,
+        person,
         variant,
         style: { ...variant.place(), "--peek-duration": `${variant.durationMs}ms` } as CSSProperties,
       });
@@ -68,13 +70,13 @@ export function PeekingFriends() {
 
     timer = setTimeout(showNext, 2500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [people]);
 
   return (
     <div aria-hidden className="peek-layer pointer-events-none absolute inset-0 z-0 overflow-hidden">
       {current && (
         <div key={current.key} className={`peek ${current.variant.cls}`} style={current.style}>
-          <Portrait personId={current.personId} />
+          <Portrait person={current.person} />
         </div>
       )}
     </div>

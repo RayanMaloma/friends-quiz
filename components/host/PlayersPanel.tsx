@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { HostView } from "@/lib/types";
-import { personName } from "@/lib/people";
 import { NameBadge } from "@/components/ui";
 
 /**
@@ -20,6 +19,7 @@ export function PlayersPanel({
 }) {
   const [pending, setPending] = useState<string | null>(null);
   const inLobby = view.status === "LOBBY";
+  const personName = (id: string) => view.config.people.find((p) => p.id === id)?.name ?? id;
 
   return (
     <div className="anim-fade fixed inset-0 z-40 flex items-center justify-center bg-ink/50 p-6" onClick={onClose}>

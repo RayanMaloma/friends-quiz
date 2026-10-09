@@ -23,6 +23,8 @@ export function useGameSync<V>(
   fetchView: () => Promise<ViewResult<V>>,
 ) {
   const [view, setView] = useState<V | null>(null);
+  /** Local Date.now() when the current view arrived (to align timers with the server clock). */
+  const [receivedAt, setReceivedAt] = useState(0);
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [connected, setConnected] = useState(true);
   const [realtimeUp, setRealtimeUp] = useState(false);
@@ -38,6 +40,7 @@ export function useGameSync<V>(
   const apply = useCallback((res: ViewResult<V>) => {
     if (res.ok) {
       setView(res.view);
+      setReceivedAt(Date.now());
       setConnected(true);
       setFatalError(null);
     } else if (FATAL_ERRORS.has(res.error)) {
@@ -122,5 +125,5 @@ export function useGameSync<V>(
     return () => clearInterval(timer);
   }, [sessionId, refresh, pollMs, fatalError]);
 
-  return { view, fatalError, connected, realtimeUp, refresh, mutate };
+  return { view, receivedAt, fatalError, connected, realtimeUp, refresh, mutate };
 }
