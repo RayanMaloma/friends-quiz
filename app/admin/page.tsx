@@ -88,10 +88,10 @@ export default function AdminGamesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-4xl">ألعابك 🎮</h1>
         <div className="flex gap-2">
-          <button onClick={() => importInput.current?.click()} className="btn btn-ghost h-12 px-4 text-lg">
+          <button onClick={() => importInput.current?.click()} className="abtn">
             استيراد
           </button>
-          <button onClick={() => setShowNew(true)} className="btn btn-primary h-12 px-5 text-xl">
+          <button onClick={() => setShowNew(true)} className="abtn abtn-primary">
             + لعبة جديدة
           </button>
         </div>
@@ -107,7 +107,7 @@ export default function AdminGamesPage() {
         />
       </div>
 
-      {error && <p className="chunk-sm bg-pink px-3 py-2 font-bold text-white">{error}</p>}
+      {error && <p className="panel-sm bg-pink px-3 py-2 font-bold text-white">{error}</p>}
 
       {games === null ? (
         <Spinner className="mx-auto mt-10 size-8 text-ink" />
@@ -146,7 +146,7 @@ export default function AdminGamesPage() {
                 <button
                   disabled={!!busy}
                   onClick={() => create("createGame", { template: t.id satisfies TemplateId })}
-                  className="chunk-sm flex h-full w-full flex-col items-start gap-1 bg-card p-4 text-start transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+                  className="panel-sm flex h-full w-full flex-col items-start gap-1 bg-card p-4 text-start transition-transform hover:-translate-y-0.5 disabled:opacity-50"
                 >
                   <span className="text-3xl">{t.emoji}</span>
                   <span className="font-display text-xl">{t.title}</span>
@@ -164,15 +164,15 @@ export default function AdminGamesPage() {
 
 function EmptyState({ busy, onLegacy, onNew }: { busy: string | null; onLegacy: () => void; onNew: () => void }) {
   return (
-    <div className="chunk mx-auto mt-6 flex max-w-xl flex-col items-center gap-4 bg-card p-8 text-center">
+    <div className="panel mx-auto mt-6 flex max-w-xl flex-col items-center gap-4 bg-card p-8 text-center">
       <span className="text-6xl">🎲</span>
       <h2 className="font-display text-3xl">ما عندك ألعاب للحين</h2>
       <p className="font-bold text-mute">ابدأ لعبة جديدة من قالب، أو رجّع لعبة «عن مين؟» الأصلية بكل معلوماتها وصورها.</p>
       <div className="flex flex-wrap justify-center gap-3">
-        <button onClick={onNew} className="btn btn-primary h-14 px-6 text-xl">
+        <button onClick={onNew} className="abtn abtn-primary abtn-lg">
           + لعبة جديدة
         </button>
-        <button onClick={onLegacy} disabled={!!busy} className="btn btn-ghost h-14 px-6 text-xl">
+        <button onClick={onLegacy} disabled={!!busy} className="abtn abtn-lg">
           {busy === "importLegacy" && <Spinner />}
           استيراد «عن مين؟» الأصلية
         </button>
@@ -195,10 +195,10 @@ function GameCard({
   const [menu, setMenu] = useState(false);
   const updated = new Date(g.updatedAt).toLocaleDateString("ar-SA-u-nu-latn", { day: "numeric", month: "short" });
   return (
-    <li className="chunk relative flex flex-col gap-3 bg-card p-4">
+    <li className="panel relative flex flex-col gap-3 bg-card p-4">
       <div className="flex items-start gap-3">
         <span
-          className="chunk-sm grid size-14 shrink-0 -rotate-6 place-items-center text-3xl"
+          className="panel-sm grid size-14 shrink-0 -rotate-6 place-items-center text-3xl"
           style={{ background: ACCENT_HEX[g.accent] }}
         >
           {g.emoji}
@@ -215,12 +215,12 @@ function GameCard({
             <span>· {updated}</span>
           </div>
         </div>
-        <button onClick={() => setMenu((m) => !m)} className="btn btn-ghost size-10 shrink-0 text-lg" aria-label="خيارات">
+        <button onClick={() => setMenu((m) => !m)} className="abtn size-10 shrink-0" aria-label="خيارات">
           ⋯
         </button>
       </div>
       {menu && (
-        <div className="chunk-sm absolute end-4 top-16 z-10 flex min-w-40 flex-col bg-card py-1" onMouseLeave={() => setMenu(false)}>
+        <div className="panel-sm absolute end-4 top-16 z-10 flex min-w-40 flex-col bg-card py-1" onMouseLeave={() => setMenu(false)}>
           <MenuItem onClick={() => onAct("duplicateGame")}>نسخ اللعبة</MenuItem>
           {g.status === "archived" ? (
             <MenuItem onClick={() => onAct("setStatus", { status: "draft" })}>استرجاع من الأرشيف</MenuItem>
@@ -238,13 +238,13 @@ function GameCard({
         </div>
       )}
       <div className="flex gap-2">
-        <Link href={`/admin/games/${g.id}`} className="btn btn-ghost h-11 flex-1 text-lg">
+        <Link href={`/admin/games/${g.id}`} className="abtn flex-1">
           تعديل
         </Link>
         <button
           onClick={onPlay}
           disabled={busy || g.status === "archived" || g.questionCount === 0}
-          className="btn btn-primary h-11 flex-1 text-lg"
+          className="abtn abtn-primary flex-1"
         >
           {busy ? <Spinner className="size-4" /> : "📺"} تشغيل
         </button>

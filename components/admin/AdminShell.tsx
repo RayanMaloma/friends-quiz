@@ -12,7 +12,7 @@ export function AdminGate({ configured }: { configured: boolean }) {
     return (
       <main className="safe-pad mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-6 text-center">
         <Brand className="text-6xl" />
-        <div className="chunk bg-card p-6">
+        <div className="panel p-6">
           <p className="font-display text-2xl">لوحة التحكم مقفلة 🔒</p>
           <p className="mt-2 font-bold text-mute">
             أضف متغير البيئة <code dir="ltr">ADMIN_PASSWORD</code> في إعدادات السيرفر (Vercel) ثم أعد النشر.
@@ -29,50 +29,76 @@ const NAV = [
   { href: "/admin/sessions", label: "الجلسات", match: (p: string) => p.startsWith("/admin/sessions") },
 ];
 
-export function AdminShell({ children, warnings }: { children: React.ReactNode; warnings: string[] }) {
+export interface AdminWarning {
+  /** Blocking problems are always shown; setup tips fold away. */
+  level: "blocking" | "tip";
+  text: string;
+}
+
+export function AdminShell({ children, warnings }: { children: React.ReactNode; warnings: AdminWarning[] }) {
   const pathname = usePathname();
   const router = useRouter();
+  const blocking = warnings.filter((w) => w.level === "blocking");
+  const tips = warnings.filter((w) => w.level === "tip");
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-30 border-b-[3px] border-ink bg-cream/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5">
-          <Link href="/admin" className="shrink-0">
-            <Brand className="text-3xl" />
+    <div className="flex min-h-dvh flex-col overflow-x-clip">
+      <header className="sticky top-0 z-30 border-b-2 border-ink bg-cream/95 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-1.5 px-3 sm:gap-2 sm:px-4">
+          <Link href="/admin" className="shrink-0 sm:me-2" aria-label="الرئيسية">
+            <Brand className="text-xl sm:text-2xl" />
           </Link>
-          <nav className="flex flex-1 items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <nav className="flex items-center gap-1">
             {NAV.map((n) => (
               <Link
                 key={n.href}
                 href={n.href}
-                className={`chunk-sm shrink-0 px-3 pb-0.5 pt-1.5 font-display text-lg leading-tight ${
-                  n.match(pathname) ? "bg-sun" : "bg-card"
-                }`}
+                className={`abtn abtn-sm ${n.match(pathname) ? "abtn-primary" : "abtn-quiet"}`}
               >
                 {n.label}
               </Link>
             ))}
-            <Link href="/host" className="chunk-sm shrink-0 bg-card px-3 pb-0.5 pt-1.5 font-display text-lg leading-tight">
-              📺 تشغيل
-            </Link>
           </nav>
-          <button
-            onClick={async () => {
-              await api("/api/admin", { action: "logout" });
-              router.refresh();
-            }}
-            className="shrink-0 text-sm font-bold text-mute underline underline-offset-4"
-          >
-            خروج
-          </button>
+          <div className="ms-auto flex items-center gap-1">
+            <Link href="/host" className="abtn abtn-sm" title="افتح غرفة على التلفزيون">
+              📺 <span className="hidden sm:inline">تشغيل على التلفزيون</span>
+            </Link>
+            <button
+              onClick={async () => {
+                await api("/api/admin", { action: "logout" });
+                router.refresh();
+              }}
+              className="abtn abtn-quiet abtn-sm text-mute"
+              title="تسجيل خروج"
+            >
+              <span className="sm:hidden" aria-hidden>
+                🚪
+              </span>
+              <span className="hidden sm:inline">خروج</span>
+            </button>
+          </div>
         </div>
       </header>
-      {warnings.length > 0 && (
-        <div className="mx-auto mt-3 flex w-full max-w-6xl flex-col gap-2 px-4">
-          {warnings.map((w) => (
-            <p key={w} className="chunk-sm bg-[#fff1c4] px-3 py-2 text-sm font-bold">
-              ⚠️ {w}
+
+      {(blocking.length > 0 || tips.length > 0) && (
+        <div className="mx-auto mt-4 flex w-full max-w-6xl flex-col gap-2 px-4">
+          {blocking.map((w) => (
+            <p key={w.text} className="panel-sm bg-[#ffe1ec] px-4 py-2.5 text-sm font-bold">
+              ⛔ {w.text}
             </p>
           ))}
+          {tips.length > 0 && (
+            <details className="panel-sm group bg-[#fff6d8] px-4 py-2 text-sm font-bold">
+              <summary className="cursor-pointer list-none select-none">
+                ⚠️ ملاحظات الإعداد ({tips.length})
+                <span className="ms-2 text-xs text-mute group-open:hidden">اضغط للتفاصيل</span>
+              </summary>
+              <ul className="mt-2 flex flex-col gap-1 font-semibold">
+                {tips.map((w) => (
+                  <li key={w.text}>• {w.text}</li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       )}
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-5">{children}</div>

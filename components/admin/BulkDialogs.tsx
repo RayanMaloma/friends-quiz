@@ -91,7 +91,7 @@ export function PhotoBulkDialog({
           e.preventDefault();
           addFiles(e.dataTransfer.files);
         }}
-        className="chunk-sm flex flex-col gap-3 border-dashed bg-card p-3"
+        className="panel-sm flex flex-col gap-3 border-dashed bg-card p-3"
       >
         {items.length === 0 ? (
           <button
@@ -134,7 +134,7 @@ export function PhotoBulkDialog({
               ))}
             </ul>
             {!running && (
-              <button type="button" onClick={() => input.current?.click()} className="btn btn-ghost h-10 self-start px-3 text-base">
+              <button type="button" onClick={() => input.current?.click()} className="abtn abtn-sm self-start">
                 + صور ثانية
               </button>
             )}
@@ -160,7 +160,7 @@ export function PhotoBulkDialog({
       <button
         onClick={run}
         disabled={!personId || running || items.every((i) => i.status === "done")}
-        className="btn btn-primary h-14 text-xl"
+        className="abtn abtn-primary abtn-lg"
       >
         {running && <Spinner />}
         {running
@@ -222,7 +222,7 @@ export function FactsBulkDialog({
           );
           onClose();
         }}
-        className="btn btn-primary h-14 text-xl"
+        className="abtn abtn-primary abtn-lg"
       >
         أضف {lines.length} سؤال
       </button>

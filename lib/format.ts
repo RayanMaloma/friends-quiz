@@ -19,7 +19,7 @@ export const questionsLabel = (n: number) =>
   n === 0 ? "ولا سؤال" : countLabel(n, { one: "سؤال واحد", two: "سؤالين", few: "أسئلة", many: "سؤال" });
 
 export const peopleLabel = (n: number) =>
-  countLabel(n, { one: "شخص واحد", two: "شخصين", few: "أشخاص", many: "شخص" });
+  n === 0 ? "ولا شخص" : countLabel(n, { one: "شخص واحد", two: "شخصين", few: "أشخاص", many: "شخص" });
 
 export const playersLabel = (n: number) =>
   n === 0 ? "ولا لاعب" : countLabel(n, { one: "لاعب واحد", two: "لاعبين", few: "لاعبين", many: "لاعب" });

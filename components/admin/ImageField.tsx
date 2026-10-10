@@ -56,16 +56,16 @@ export function ImageField({
           const file = [...e.clipboardData.files][0];
           if (file) void handle(file);
         }}
-        className={`chunk-sm relative overflow-hidden ${className} ${over ? "bg-[#fffbea]" : value ? "bg-ink" : "bg-cream"}`}
+        className={`panel-sm relative overflow-hidden ${className} ${over ? "bg-[#fffbea]" : value ? "bg-ink" : "bg-cream"}`}
       >
         {value ? (
           <>
             <Img src={value} alt="" sizes="400px" className={fit === "cover" ? "object-cover" : "object-contain"} />
             <div className="absolute bottom-2 start-2 flex gap-2">
-              <button type="button" onClick={() => input.current?.click()} className="btn btn-ghost h-9 px-3 text-sm">
+              <button type="button" onClick={() => input.current?.click()} className="abtn abtn-sm">
                 تغيير
               </button>
-              <button type="button" onClick={() => onChange(null)} className="btn h-9 bg-pink px-3 text-sm text-white">
+              <button type="button" onClick={() => onChange(null)} className="abtn abtn-danger abtn-sm">
                 حذف
               </button>
             </div>

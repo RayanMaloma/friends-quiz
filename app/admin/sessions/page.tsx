@@ -83,7 +83,7 @@ export default function SessionsPage() {
         <h1 className="font-display text-4xl">الجلسات 🕹️</h1>
         <p className="font-bold text-mute">كل مرة تفتح فيها غرفة على التلفزيون. آخر ١٠٠ جلسة.</p>
       </div>
-      {error && <p className="chunk-sm bg-pink px-3 py-2 font-bold text-white">{error}</p>}
+      {error && <p className="panel-sm bg-pink px-3 py-2 font-bold text-white">{error}</p>}
       {rows === null ? (
         <Spinner className="mx-auto mt-10 size-8 text-ink" />
       ) : rows.length === 0 ? (
@@ -94,7 +94,7 @@ export default function SessionsPage() {
             const live = r.status !== "FINISHED";
             const canOpen = live && !!hostStore.get(r.id);
             return (
-              <li key={r.id} className="chunk-sm flex flex-wrap items-center gap-3 bg-card p-3">
+              <li key={r.id} className="panel-sm flex flex-wrap items-center gap-3 bg-card p-3">
                 <span className="text-2xl">{r.emoji}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-extrabold">
@@ -108,19 +108,19 @@ export default function SessionsPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {canOpen && (
-                    <Link href={`/host/${r.id}`} className="btn btn-primary h-9 px-3 text-sm">
+                    <Link href={`/host/${r.id}`} className="abtn abtn-primary abtn-sm">
                       فتح التلفزيون
                     </Link>
                   )}
-                  <button onClick={() => showResults(r)} disabled={busy === r.id} className="btn btn-ghost h-9 px-3 text-sm">
+                  <button onClick={() => showResults(r)} disabled={busy === r.id} className="abtn abtn-sm">
                     النتائج
                   </button>
                   {live && (
-                    <button onClick={() => act(r, "endSession")} disabled={busy === r.id} className="btn btn-ghost h-9 px-3 text-sm">
+                    <button onClick={() => act(r, "endSession")} disabled={busy === r.id} className="abtn abtn-sm">
                       إنهاء
                     </button>
                   )}
-                  <button onClick={() => act(r, "deleteSession")} disabled={busy === r.id} className="btn h-9 bg-pink px-3 text-sm text-white">
+                  <button onClick={() => act(r, "deleteSession")} disabled={busy === r.id} className="abtn abtn-danger abtn-sm">
                     حذف
                   </button>
                 </div>
@@ -137,7 +137,7 @@ export default function SessionsPage() {
           ) : (
             <ol className="flex flex-col gap-2">
               {results.board.map((e) => (
-                <li key={e.playerId} className={`chunk-sm flex items-center gap-3 px-3 py-2 ${e.rank === 1 ? "bg-sun" : "bg-card"}`}>
+                <li key={e.playerId} className={`panel-sm flex items-center gap-3 px-3 py-2 ${e.rank === 1 ? "bg-sun" : "bg-card"}`}>
                   <span className="w-8 text-center font-display text-xl">
                     {e.rank <= 3 ? ["🥇", "🥈", "🥉"][e.rank - 1] : e.rank}
                   </span>

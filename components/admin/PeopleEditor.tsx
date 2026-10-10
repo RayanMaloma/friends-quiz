@@ -12,12 +12,13 @@ import { inputCls } from "@/components/admin/ui";
  */
 export function PeopleEditor({
   doc,
-  onChange,
+  update,
   onAddPhotos,
   onPasteFacts,
 }: {
   doc: GameDoc;
-  onChange: (people: Person[], questions?: GameDoc["questions"]) => void;
+  /** Functional updates: several portrait uploads can finish in any order. */
+  update: (fn: (d: GameDoc) => GameDoc) => void;
   onAddPhotos: (personId: string) => void;
   onPasteFacts: (personId: string) => void;
 }) {
@@ -25,35 +26,37 @@ export function PeopleEditor({
   const countFor = (id: string) =>
     doc.questions.filter((q) => q.aboutPersonId === id || (q.type === "who" && q.correct.includes(id))).length;
 
-  const update = (i: number, patch: Partial<Person>) =>
-    onChange(people.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const patchPerson = (id: string, patch: Partial<Person>) =>
+    update((d) => ({ ...d, people: d.people.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
 
   const remove = (p: Person) => {
     const n = countFor(p.id);
     if (!window.confirm(n > 0 ? `حذف ${p.name}؟ عنده ${n} سؤال بتحتاج تختار لها إجابة ثانية.` : `حذف ${p.name}؟`)) return;
     // Drop references so nothing points at a missing person.
-    const questions = doc.questions.map((q) => ({
-      ...q,
-      correct: q.correct.filter((c) => c !== p.id),
-      aboutPersonId: q.aboutPersonId === p.id ? null : q.aboutPersonId,
+    update((d) => ({
+      ...d,
+      people: d.people.filter((x) => x.id !== p.id),
+      questions: d.questions.map((q) => ({
+        ...q,
+        correct: q.correct.filter((c) => c !== p.id),
+        aboutPersonId: q.aboutPersonId === p.id ? null : q.aboutPersonId,
+      })),
     }));
-    onChange(people.filter((x) => x.id !== p.id), questions);
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="chunk-sm bg-[#eef4ff] px-4 py-3 text-sm font-bold leading-relaxed">
-        الأشخاص هم الإجابات في أسئلة «مين؟» والتصويت. الصورة تطلع على التلفزيون لحظة كشف الإجابة — أفضل شي صورة مقصوصة
-        بخلفية شفافة (PNG) والشخص واقف لين أسفل الصورة. لو الشخص داخل يلعب، يختار اسمه عند الدخول وما يجاوب على الأسئلة
-        اللي عنه.
-      </div>
+      <p className="text-sm font-semibold text-mute">
+        الأشخاص هم الإجابات في أسئلة «مين؟» والتصويت. الصورة تطلع كبيرة على التلفزيون وقت كشف الإجابة — أفضل شي PNG
+        بخلفية شفافة. اللي داخل يلعب يختار اسمه عند الدخول وما يجاوب على الأسئلة اللي عنه.
+      </p>
 
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {people.map((p, i) => (
-          <li key={p.id} className="chunk flex flex-col gap-3 bg-card p-3">
+        {people.map((p) => (
+          <li key={p.id} className="panel flex flex-col gap-3 bg-card p-3">
             <ImageField
               value={p.image}
-              onChange={(image) => update(i, { image })}
+              onChange={(image) => patchPerson(p.id, { image })}
               kind="portrait"
               label="صورة الشخص"
               className="h-52"
@@ -61,19 +64,19 @@ export function PeopleEditor({
             <input
               value={p.name}
               maxLength={LIMITS.personName}
-              onChange={(e) => update(i, { name: e.target.value })}
+              onChange={(e) => patchPerson(p.id, { name: e.target.value })}
               placeholder="الاسم"
               className={`${inputCls} h-12 font-display text-xl`}
             />
             <p className="text-xs font-bold text-mute">{countFor(p.id)} سؤال عنه</p>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => onAddPhotos(p.id)} className="btn btn-ghost h-10 px-3 text-sm">
+              <button onClick={() => onAddPhotos(p.id)} className="abtn abtn-sm">
                 📸 صور من {p.name || "…"}
               </button>
-              <button onClick={() => onPasteFacts(p.id)} className="btn btn-ghost h-10 px-3 text-sm">
+              <button onClick={() => onPasteFacts(p.id)} className="abtn abtn-sm">
                 📝 معلومات
               </button>
-              <button onClick={() => remove(p)} className="btn h-10 bg-pink px-3 text-sm text-white">
+              <button onClick={() => remove(p)} className="abtn abtn-danger abtn-sm">
                 حذف
               </button>
             </div>
@@ -82,8 +85,13 @@ export function PeopleEditor({
         {people.length < LIMITS.people && (
           <li>
             <button
-              onClick={() => onChange([...people, { id: newId("p"), name: `شخص ${people.length + 1}`, image: null }])}
-              className="chunk flex size-full min-h-48 flex-col items-center justify-center gap-2 border-dashed bg-cream font-display text-2xl text-mute hover:text-ink"
+              onClick={() =>
+                update((d) => ({
+                  ...d,
+                  people: [...d.people, { id: newId("p"), name: `شخص ${d.people.length + 1}`, image: null }],
+                }))
+              }
+              className="panel flex size-full min-h-48 flex-col items-center justify-center gap-2 border-dashed bg-cream font-display text-2xl text-mute hover:text-ink"
             >
               <span className="text-4xl">＋</span>
               إضافة شخص

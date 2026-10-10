@@ -60,7 +60,7 @@ export function GeneralEditor({ doc, onChange }: { doc: GameDoc; onChange: (patc
                 key={a}
                 type="button"
                 onClick={() => onChange({ accent: a })}
-                className={`chunk-sm flex h-11 items-center gap-2 px-3 font-extrabold ${doc.accent === a ? "-translate-y-0.5" : "opacity-70"}`}
+                className={`panel-sm flex h-11 items-center gap-2 px-3 font-extrabold ${doc.accent === a ? "-translate-y-0.5" : "opacity-70"}`}
                 style={{ background: ACCENT_HEX[a] }}
               >
                 {doc.accent === a && "✓"} {ACCENT_LABEL[a]}

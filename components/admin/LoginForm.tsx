@@ -43,10 +43,10 @@ export function LoginForm({ onSuccess, hint }: { onSuccess: () => void; hint?: s
             setError(null);
           }}
           placeholder="كلمة المرور"
-          className="chunk h-16 w-full bg-card px-5 text-center text-2xl font-bold outline-none focus:bg-[#fffbea]"
+          className="panel h-16 w-full bg-card px-5 text-center text-2xl font-bold outline-none focus:bg-[#fffbea]"
         />
         {error && <p className="font-bold text-pink">{error}</p>}
-        <button type="submit" disabled={!password || busy} className="btn btn-primary h-16 text-2xl">
+        <button type="submit" disabled={!password || busy} className="abtn abtn-primary abtn-lg">
           {busy && <Spinner />}
           دخول
         </button>

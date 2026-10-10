@@ -67,7 +67,8 @@ export function QuestionCard({
   people: Person[];
   expanded: boolean;
   onToggle: () => void;
-  onChange: (q: Question) => void;
+  /** Pass a function to update from the latest state (async uploads must not undo newer edits). */
+  onChange: (next: QuestionUpdate) => void;
   onMove: (delta: number) => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -76,19 +77,19 @@ export function QuestionCard({
   const info = QUESTION_TYPE_INFO[q.type];
   return (
     <li
-      className={`chunk-sm flex flex-col bg-card ${q.enabled ? "" : "opacity-60"} ${
+      className={`panel-sm flex flex-col overflow-hidden bg-card ${q.enabled ? "" : "opacity-60"} ${
         issues.length ? "border-pink" : ""
-      }`}
+      } ${expanded ? "shadow-[0_3px_0_var(--color-ink)]" : ""}`}
     >
-      <div className="flex items-center gap-2 p-2 sm:gap-3 sm:p-3">
-        <span className="w-7 shrink-0 text-center font-display text-lg text-mute">{index + 1}</span>
+      <div className={`flex items-center gap-2 p-2 sm:gap-3 sm:px-3 ${expanded ? "bg-[#fff6d8]" : ""}`}>
+        <span className="w-6 shrink-0 text-center text-sm font-black text-mute">{index + 1}</span>
         <button onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-start">
           {q.image ? (
-            <span className="relative size-12 shrink-0 overflow-hidden rounded-lg border-2 border-ink bg-ink">
-              <Img src={q.image} alt="" sizes="48px" className="object-cover" />
+            <span className="relative size-11 shrink-0 overflow-hidden rounded-lg border-2 border-ink bg-ink">
+              <Img src={q.image} alt="" sizes="44px" className="object-cover" />
             </span>
           ) : (
-            <span className="grid size-12 shrink-0 place-items-center rounded-lg border-2 border-ink bg-cream text-2xl">
+            <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-cream text-xl">
               {info.emoji}
             </span>
           )}
@@ -96,13 +97,16 @@ export function QuestionCard({
             <span className="block truncate font-extrabold">
               {q.prompt || (q.image ? "📷 صورة" : <span className="text-mute">سؤال فاضي</span>)}
             </span>
-            <span className="block truncate text-xs font-bold text-mute">
+            <span className="block truncate text-xs font-semibold text-mute">
               {info.label} · الإجابة: {answerSummary(q, people)}
             </span>
           </span>
           {issues.length > 0 && (
-            <span className="shrink-0 rounded-full bg-pink px-2 pb-0.5 pt-1 text-xs font-black text-white" title={issues.join("\n")}>
-              ⚠ {issues.length}
+            <span
+              className="shrink-0 rounded-full bg-pink px-2 py-0.5 text-xs font-black text-white"
+              title={issues.join("\n")}
+            >
+              يحتاج تصليح
             </span>
           )}
         </button>
@@ -120,26 +124,36 @@ export function QuestionCard({
       </div>
 
       {expanded && (
-        <div className="flex flex-col gap-5 border-t-[3px] border-ink p-3 sm:p-4">
+        <div className="flex flex-col gap-5 border-t-2 border-ink/15 p-3 sm:p-5">
           {issues.length > 0 && (
-            <ul className="chunk-sm flex flex-col gap-0.5 bg-[#ffe1ec] px-3 py-2 text-sm font-bold">
+            <ul className="flex flex-col gap-0.5 rounded-xl bg-[#ffe1ec] px-3 py-2 text-sm font-bold">
               {issues.map((i) => (
-                <li key={i}>⚠ {i}</li>
+                <li key={i}>• {i}</li>
               ))}
             </ul>
           )}
           <QuestionForm q={q} people={people} onChange={onChange} />
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-dashed border-ink/20 pt-4">
-            <Toggle checked={q.enabled} onChange={(enabled) => onChange({ ...q, enabled })} label="مفعّل" hint="الأسئلة الموقفة ما تنلعب" />
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-ink/10 pt-4">
+            <div className="min-w-56">
+              <Toggle
+                checked={q.enabled}
+                onChange={(enabled) => onChange((cur) => ({ ...cur, enabled }))}
+                label="مفعّل"
+                hint="الأسئلة الموقفة ما تنلعب"
+              />
+            </div>
             <div className="flex gap-2">
-              <button onClick={onDuplicate} className="btn btn-ghost h-10 px-3 text-base">
+              <button onClick={onToggle} className="abtn abtn-primary abtn-sm">
+                تم ✓
+              </button>
+              <button onClick={onDuplicate} className="abtn abtn-sm">
                 نسخ
               </button>
               <button
                 onClick={() => {
                   if (window.confirm("حذف السؤال؟")) onDelete();
                 }}
-                className="btn h-10 bg-pink px-3 text-base text-white"
+                className="abtn abtn-danger abtn-sm"
               >
                 حذف
               </button>
@@ -168,38 +182,48 @@ function IconBtn({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="grid size-9 place-items-center rounded-lg border-2 border-ink bg-cream font-black disabled:opacity-30"
+      className="abtn abtn-quiet abtn-sm abtn-icon text-base"
     >
       {children}
     </button>
   );
 }
 
-function QuestionForm({ q, people, onChange }: { q: Question; people: Person[]; onChange: (q: Question) => void }) {
-  const set = (patch: Partial<Question>) => onChange({ ...q, ...patch });
+export type QuestionUpdate = Question | ((cur: Question) => Question);
+
+function QuestionForm({
+  q,
+  people,
+  onChange,
+}: {
+  q: Question;
+  people: Person[];
+  onChange: (next: QuestionUpdate) => void;
+}) {
+  const set = (patch: Partial<Question>) => onChange((cur) => ({ ...cur, ...patch }));
   const [advanced, setAdvanced] = useState(q.timeLimit !== null || q.points !== null || !!q.note);
 
   return (
     <div className="flex flex-col gap-5">
       <Field label="نوع السؤال">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="flex flex-wrap gap-1.5">
           {QUESTION_TYPES.map((t) => {
             const info = QUESTION_TYPE_INFO[t];
             return (
               <button
                 key={t}
                 type="button"
-                onClick={() => t !== q.type && onChange(changeType(q, t, people))}
-                className={`chunk-sm flex items-center gap-2 px-2 py-2 text-start ${t === q.type ? "bg-sun" : "bg-cream"}`}
+                aria-pressed={t === q.type}
+                onClick={() => t !== q.type && onChange((cur) => changeType(cur, t, people))}
+                className={`abtn abtn-sm ${t === q.type ? "abtn-primary" : "text-ink/70"}`}
                 title={info.hint}
               >
-                <span className="text-xl">{info.emoji}</span>
-                <span className="text-sm font-extrabold leading-tight">{info.label}</span>
+                {info.emoji} {info.label}
               </button>
             );
           })}
         </div>
-        <p className="text-xs font-bold text-mute">{QUESTION_TYPE_INFO[q.type].hint}</p>
+        <p className="text-xs font-semibold text-mute">{QUESTION_TYPE_INFO[q.type].hint}</p>
       </Field>
 
       <div className="grid gap-4 md:grid-cols-[1fr_16rem]">
@@ -252,6 +276,9 @@ function QuestionForm({ q, people, onChange }: { q: Question; people: Person[]; 
           correct={q.correct}
           withCorrect
           onChange={(options, correct) => set({ options, correct })}
+          onOptionImage={(id, image) =>
+            onChange((cur) => ({ ...cur, options: cur.options.map((o) => (o.id === id ? { ...o, image } : o)) }))
+          }
         />
       )}
 
@@ -286,7 +313,14 @@ function QuestionForm({ q, people, onChange }: { q: Question; people: Person[]; 
             />
           </Field>
           {q.optionSource === "custom" && (
-            <OptionsEditor options={q.options} correct={[]} onChange={(options) => set({ options })} />
+            <OptionsEditor
+              options={q.options}
+              correct={[]}
+              onChange={(options) => set({ options })}
+              onOptionImage={(id, image) =>
+                onChange((cur) => ({ ...cur, options: cur.options.map((o) => (o.id === id ? { ...o, image } : o)) }))
+              }
+            />
           )}
           <Field label="النقاط">
             <Segmented
@@ -321,7 +355,7 @@ function QuestionForm({ q, people, onChange }: { q: Question; people: Person[]; 
       )}
 
       <div>
-        <button type="button" onClick={() => setAdvanced((a) => !a)} className="font-extrabold text-mute underline underline-offset-4">
+        <button type="button" onClick={() => setAdvanced((a) => !a)} className="abtn abtn-quiet abtn-sm -ms-2 text-mute">
           {advanced ? "إخفاء الخيارات المتقدمة" : "خيارات متقدمة (وقت، نقاط، ملاحظة…)"}
         </button>
         {advanced && (
@@ -400,7 +434,8 @@ export function PersonPicker({
           key={p.id}
           type="button"
           onClick={() => onChange(value === p.id ? null : p.id)}
-          className={`chunk-sm flex h-11 items-center gap-2 pe-3 ps-1 font-extrabold ${value === p.id ? "-translate-y-0.5 bg-sun" : "bg-cream"}`}
+          aria-pressed={value === p.id}
+          className={`abtn h-11 ps-1 ${value === p.id ? "abtn-primary" : ""}`}
         >
           <span className="relative size-8 overflow-hidden rounded-full border-2 border-ink bg-card">
             {p.image ? (
@@ -422,11 +457,13 @@ function OptionsEditor({
   correct,
   withCorrect = false,
   onChange,
+  onOptionImage,
 }: {
   options: ChoiceOption[];
   correct: string[];
   withCorrect?: boolean;
   onChange: (options: ChoiceOption[], correct: string[]) => void;
+  onOptionImage: (optionId: string, image: string | null) => void;
 }) {
   const update = (i: number, patch: Partial<ChoiceOption>) =>
     onChange(options.map((o, j) => (j === i ? { ...o, ...patch } : o)), correct);
@@ -448,7 +485,7 @@ function OptionsEditor({
                 placeholder={`الخيار ${i + 1}`}
                 className={`${inputCls} h-11 min-w-0 flex-1`}
               />
-              <OptionImage value={o.image} onChange={(image) => update(i, { image })} />
+              <OptionImage value={o.image} onChange={(image) => onOptionImage(o.id, image)} />
               {withCorrect && (
                 <button
                   type="button"
@@ -467,7 +504,7 @@ function OptionsEditor({
                 type="button"
                 disabled={options.length <= 2}
                 onClick={() => onChange(options.filter((_, j) => j !== i), correct.filter((c) => c !== o.id))}
-                className="grid size-11 shrink-0 place-items-center rounded-lg border-2 border-ink bg-cream font-black disabled:opacity-30"
+                className="grid size-11 shrink-0 place-items-center rounded-lg border-2 border-ink bg-card font-black disabled:opacity-30"
                 title="حذف الخيار"
               >
                 ✕
@@ -480,7 +517,7 @@ function OptionsEditor({
         <button
           type="button"
           onClick={() => onChange([...options, { id: newId("o"), label: "", image: null }], correct)}
-          className="btn btn-ghost h-10 self-start px-3 text-base"
+          className="abtn abtn-sm self-start"
         >
           + خيار
         </button>
@@ -503,7 +540,7 @@ function OptionImage({ value, onChange }: { value: string | null; onChange: (url
       </button>
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-6" onClick={() => setOpen(false)}>
-          <div className="chunk w-full max-w-xs bg-cream p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="panel w-full max-w-xs bg-cream p-4" onClick={(e) => e.stopPropagation()}>
             <ImageField
               value={value}
               onChange={(url) => {
@@ -540,7 +577,7 @@ function TagsInput({
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
         {values.map((v) => (
-          <span key={v} className="chunk-sm flex items-center gap-2 bg-mint px-3 pb-0.5 pt-1 font-extrabold">
+          <span key={v} className="flex h-8 items-center gap-2 rounded-full border-2 border-ink bg-mint px-3 text-sm font-extrabold">
             {v}
             <button type="button" onClick={() => onChange(values.filter((x) => x !== v))} aria-label="حذف">
               ✕
@@ -562,7 +599,7 @@ function TagsInput({
           placeholder={placeholder}
           className={`${inputCls} h-11 flex-1`}
         />
-        <button type="button" onClick={add} className="btn btn-ghost h-11 px-4 text-base">
+        <button type="button" onClick={add} className="abtn">
           إضافة
         </button>
       </div>

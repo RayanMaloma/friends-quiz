@@ -10,7 +10,7 @@ import { blankQuestion, newId, QUESTION_TYPE_INFO, QUESTION_TYPES, validateGameD
 import { ACCENT_HEX } from "@/lib/colors";
 import { peopleLabel, questionsLabel } from "@/lib/format";
 import { Spinner } from "@/components/ui";
-import { StatusPill } from "@/components/admin/ui";
+import { Modal, Notice, StatusPill, Tabs } from "@/components/admin/ui";
 import { QuestionCard } from "@/components/admin/QuestionEditor";
 import { PeopleEditor } from "@/components/admin/PeopleEditor";
 import { GeneralEditor, SettingsEditor } from "@/components/admin/SettingsEditor";
@@ -180,7 +180,7 @@ export default function GameEditorPage() {
     return (
       <div className="flex flex-col items-center gap-4 py-16 text-center">
         <p className="font-display text-3xl">{loadError}</p>
-        <Link href="/admin" className="btn btn-primary h-12 px-6 text-lg">
+        <Link href="/admin" className="abtn abtn-primary">
           رجوع للألعاب
         </Link>
       </div>
@@ -189,132 +189,136 @@ export default function GameEditorPage() {
   if (!doc) return <Spinner className="mx-auto mt-16 size-8 text-ink" />;
 
   const enabledCount = doc.questions.filter((q) => q.enabled).length;
+  const questionIssues = issues.filter((i) => i.questionId).length;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/admin" className="btn btn-ghost h-11 px-3 text-lg" aria-label="رجوع">
-          →
-        </Link>
-        <span
-          className="chunk-sm grid size-12 shrink-0 -rotate-6 place-items-center text-2xl"
-          style={{ background: ACCENT_HEX[doc.accent] }}
-        >
-          {doc.emoji}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-display text-3xl leading-tight">{doc.title || "بدون اسم"}</h1>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-mute">
-            <StatusPill status={status} />
-            <SaveIndicator state={saveState} />
-            <span>
-              المفعّل: {questionsLabel(enabledCount)} · {peopleLabel(doc.people.length)}
-            </span>
+    <div className="flex flex-col gap-4">
+      {/* Sticky header: identity + save state + the two main actions */}
+      <div className="sticky top-14 z-20 -mx-4 border-b-2 border-ink/10 bg-cream/95 px-4 py-3 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/admin" className="abtn abtn-quiet abtn-icon" aria-label="رجوع للألعاب" title="رجوع للألعاب">
+            →
+          </Link>
+          <span
+            className="grid size-11 shrink-0 place-items-center rounded-xl border-2 border-ink text-2xl"
+            style={{ background: ACCENT_HEX[doc.accent] }}
+          >
+            {doc.emoji}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate font-display text-2xl leading-tight">{doc.title || "بدون اسم"}</h1>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs font-bold text-mute">
+              <StatusPill status={status} />
+              <SaveIndicator state={saveState} />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={exportJson} className="btn btn-ghost h-11 px-3 text-base" title="تحميل نسخة JSON من اللعبة">
-            📦 تصدير
-          </button>
-          {status === "published" ? (
-            <button onClick={() => setGameStatus("draft")} disabled={!!busy} className="btn btn-ghost h-11 px-4 text-base">
-              إلغاء النشر
-            </button>
-          ) : (
+          <div className="flex w-full items-center gap-2 sm:w-auto [&>*:not(.hidden)]:flex-1 sm:[&>*]:flex-none">
             <button
-              onClick={() => setGameStatus("published")}
-              disabled={!!busy || status === "archived"}
-              className="btn h-11 bg-mint px-4 text-lg"
+              onClick={exportJson}
+              className="abtn abtn-quiet abtn-sm hidden sm:inline-flex"
+              title="تحميل نسخة JSON من اللعبة"
             >
-              {busy === "status" && <Spinner className="size-4" />}
-              نشر
+              تصدير
             </button>
-          )}
-          <button onClick={play} disabled={!!busy || enabledCount === 0} className="btn btn-primary h-11 px-4 text-lg">
-            {busy === "play" ? <Spinner className="size-4" /> : "📺"} تشغيل
-          </button>
+            {status === "published" ? (
+              <button onClick={() => setGameStatus("draft")} disabled={!!busy} className="abtn abtn-sm">
+                إلغاء النشر
+              </button>
+            ) : (
+              <button
+                onClick={() => setGameStatus("published")}
+                disabled={!!busy || status === "archived"}
+                className="abtn abtn-go"
+              >
+                {busy === "status" && <Spinner className="size-4" />}
+                نشر
+              </button>
+            )}
+            <button onClick={play} disabled={!!busy || enabledCount === 0} className="abtn abtn-primary">
+              {busy === "play" ? <Spinner className="size-4" /> : "📺"} تشغيل
+            </button>
+          </div>
         </div>
       </div>
 
       {saveState === "conflict" && (
-        <div className="chunk-sm flex flex-wrap items-center justify-between gap-3 bg-pink px-4 py-3 font-bold text-white">
-          <span>اللعبة تعدّلت من جهاز أو تبويب ثاني. تعديلاتك هنا ما انحفظت.</span>
-          <span className="flex gap-2">
-            <button onClick={() => void load()} className="btn btn-ghost h-10 px-3 text-sm">
-              تحميل النسخة الأحدث
-            </button>
-            <button
-              onClick={() => {
-                versionRef.current = null;
-                setSaveState("dirty");
-                void saveNow();
-              }}
-              className="btn btn-ghost h-10 px-3 text-sm"
-            >
-              احفظ نسختي فوقها
-            </button>
-          </span>
-        </div>
+        <Notice
+          tone="error"
+          action={
+            <span className="flex gap-2">
+              <button onClick={() => void load()} className="abtn abtn-sm">
+                تحميل النسخة الأحدث
+              </button>
+              <button
+                onClick={() => {
+                  versionRef.current = null;
+                  setSaveState("dirty");
+                  void saveNow();
+                }}
+                className="abtn abtn-sm"
+              >
+                احفظ نسختي فوقها
+              </button>
+            </span>
+          }
+        >
+          اللعبة تعدّلت من جهاز أو تبويب ثاني، وتعديلاتك هنا ما انحفظت.
+        </Notice>
       )}
       {saveState === "error" && saveError && (
-        <div className="chunk-sm flex items-center justify-between gap-3 bg-pink px-4 py-2 font-bold text-white">
-          <span>ما انحفظ: {saveError}</span>
-          <button onClick={() => void saveNow()} className="btn btn-ghost h-9 px-3 text-sm">
-            جرّب مرة ثانية
-          </button>
-        </div>
+        <Notice
+          tone="error"
+          action={
+            <button onClick={() => void saveNow()} className="abtn abtn-sm">
+              جرّب مرة ثانية
+            </button>
+          }
+        >
+          ما انحفظ: {saveError}
+        </Notice>
       )}
       {notice && (
-        <div className="chunk-sm flex flex-col gap-1 bg-[#fff1c4] px-4 py-3 font-bold">
-          <div className="flex items-center justify-between gap-3">
-            <span>{notice.text}</span>
-            <button onClick={() => setNotice(null)} aria-label="إغلاق">
+        <Notice
+          tone={notice.issues?.length ? "warn" : "success"}
+          action={
+            <button onClick={() => setNotice(null)} className="abtn abtn-quiet abtn-sm abtn-icon" aria-label="إغلاق">
               ✕
             </button>
-          </div>
+          }
+        >
+          <p>{notice.text}</p>
           {notice.issues && notice.issues.length > 0 && (
-            <ul className="text-sm text-ink/80">
+            <ul className="mt-1 font-semibold text-ink/80">
               {notice.issues.slice(0, 8).map((i, k) => (
                 <li key={k}>
-                  ⚠{" "}
-                  {i.questionId
-                    ? `سؤال ${doc.questions.findIndex((q) => q.id === i.questionId) + 1}: `
-                    : ""}
+                  •{" "}
+                  {i.questionId ? `سؤال ${doc.questions.findIndex((q) => q.id === i.questionId) + 1}: ` : ""}
                   {i.message}
                 </li>
               ))}
               {notice.issues.length > 8 && <li>و {notice.issues.length - 8} غيرها…</li>}
             </ul>
           )}
-        </div>
+        </Notice>
       )}
 
-      {/* Tabs */}
-      <nav className="flex gap-2 overflow-x-auto no-scrollbar">
-        {(
-          [
-            ["questions", `الأسئلة (${doc.questions.length})`],
-            ["people", `الأشخاص (${doc.people.length})`],
-            ["settings", "القوانين"],
-            ["general", "الاسم والشكل"],
-          ] as [Tab, string][]
-        ).map(([t, label]) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`chunk-sm shrink-0 px-4 pb-1 pt-2 font-display text-lg leading-tight ${tab === t ? "bg-sun" : "bg-card"}`}
-          >
-            {label}
-            {t === "questions" && issues.some((i) => i.questionId) && <span className="ms-1 text-pink">●</span>}
-          </button>
-        ))}
-      </nav>
-
-      {tab === "questions" && <QuestionsTab doc={doc} update={update} />}
-      {tab === "people" && (
-        <PeopleTab doc={doc} update={update} />
+      {status !== "published" && (
+        <SetupGuide doc={doc} issues={issues} onGo={setTab} onPublish={() => setGameStatus("published")} />
       )}
+
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: "questions", label: "الأسئلة", badge: doc.questions.length, alert: questionIssues > 0 },
+          { value: "people", label: "الأشخاص", badge: doc.people.length },
+          { value: "settings", label: "القوانين" },
+          { value: "general", label: "الشكل" },
+        ]}
+      />
+
+      {tab === "questions" && <QuestionsTab doc={doc} update={update} onGoPeople={() => setTab("people")} />}
+      {tab === "people" && <PeopleTab doc={doc} update={update} />}
       {tab === "settings" && (
         <SettingsEditor
           settings={doc.settings}
@@ -330,13 +334,95 @@ export default function GameEditorPage() {
 
 function SaveIndicator({ state }: { state: SaveState }) {
   const map: Record<SaveState, string> = {
-    saved: "✓ محفوظ",
-    dirty: "• تعديلات…",
+    saved: "✓ كل التعديلات محفوظة",
+    dirty: "تعديلات جديدة…",
     saving: "جاري الحفظ…",
     error: "⚠ ما انحفظ",
     conflict: "⚠ تعارض",
   };
   return <span className={state === "error" || state === "conflict" ? "text-pink" : ""}>{map[state]}</span>;
+}
+
+/** Does this game need people? (who questions, polls about people, or a people-based template.) */
+function needsPeople(doc: GameDoc): boolean {
+  const usesPeople = doc.questions.some((q) => q.type === "who" || (q.type === "poll" && q.optionSource === "people"));
+  return usesPeople || doc.people.length > 0 || (doc.questions.length === 0 && doc.settings.askPersonOnJoin);
+}
+
+/** The steps to a playable game, shown until it is published. */
+function SetupGuide({
+  doc,
+  issues,
+  onGo,
+  onPublish,
+}: {
+  doc: GameDoc;
+  issues: Issue[];
+  onGo: (t: Tab) => void;
+  onPublish: () => void;
+}) {
+  const peopleDone = doc.people.length >= 2;
+  const enabled = doc.questions.filter((q) => q.enabled).length;
+  const questionsDone = enabled > 0 && issues.length === 0;
+  const steps = [
+    ...(needsPeople(doc)
+      ? [
+          {
+            title: "أضف الأشخاص",
+            hint: peopleDone ? peopleLabel(doc.people.length) : "شخصين على الأقل — هم الإجابات",
+            done: peopleDone,
+            action: () => onGo("people"),
+            cta: "الأشخاص",
+          },
+        ]
+      : []),
+    {
+      title: "أضف الأسئلة",
+      hint: questionsDone
+        ? questionsLabel(enabled)
+        : enabled > 0 && issues.length
+          ? `${issues.length} ${issues.length === 1 ? "شي يحتاج تصليح" : "أشياء تحتاج تصليح"}`
+          : "سؤال واحد على الأقل",
+      done: questionsDone,
+      action: () => onGo("questions"),
+      cta: "الأسئلة",
+    },
+    {
+      title: "انشر والعب",
+      hint: "تطلع في قائمة التشغيل على التلفزيون",
+      done: false,
+      action: onPublish,
+      cta: "نشر",
+    },
+  ];
+  const current = steps.findIndex((s) => !s.done);
+  return (
+    <ol className="panel grid gap-1 p-2 sm:grid-flow-col sm:auto-cols-fr sm:gap-2">
+      {steps.map((s, i) => {
+        const active = i === current;
+        return (
+          <li key={s.title} className={`flex items-center gap-3 rounded-xl p-2 ${active ? "bg-[#fff6d8]" : ""}`}>
+            <span
+              className={`grid size-8 shrink-0 place-items-center rounded-full border-2 border-ink text-sm font-black ${
+                s.done ? "bg-mint" : active ? "bg-sun" : "bg-card text-ink/40"
+              }`}
+            >
+              {s.done ? "✓" : i + 1}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={`block text-sm font-black leading-tight ${s.done ? "text-ink/50" : ""}`}>{s.title}</span>
+              <span className="block truncate text-xs font-semibold text-mute">{s.hint}</span>
+            </span>
+            {active && (
+              <button onClick={s.action} className={`abtn abtn-sm ${s.cta === "نشر" ? "abtn-go" : "abtn-primary"}`}>
+                {s.cta}
+              </button>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 type Dialog = { kind: "photos" | "facts"; personId: string | null } | null;
@@ -347,7 +433,7 @@ function PeopleTab({ doc, update }: { doc: GameDoc; update: (fn: (d: GameDoc) =>
     <>
       <PeopleEditor
         doc={doc}
-        onChange={(people, questions) => update((d) => ({ ...d, people, questions: questions ?? d.questions }))}
+        update={update}
         onAddPhotos={(personId) => setDialog({ kind: "photos", personId })}
         onPasteFacts={(personId) => setDialog({ kind: "facts", personId })}
       />
@@ -382,12 +468,49 @@ function BulkDialog({
   );
 }
 
-function QuestionsTab({ doc, update }: { doc: GameDoc; update: (fn: (d: GameDoc) => GameDoc) => void }) {
+/** Pick the type of a new question: one card per type, with what it's for. */
+function TypePicker({ onPick, onClose }: { onPick: (t: QuestionType) => void; onClose: () => void }) {
+  return (
+    <Modal title="وش نوع السؤال؟" onClose={onClose} wide>
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {QUESTION_TYPES.map((t) => {
+          const info = QUESTION_TYPE_INFO[t];
+          return (
+            <li key={t}>
+              <button
+                onClick={() => onPick(t)}
+                className="panel-sm flex h-full w-full items-start gap-3 bg-card p-3 text-start transition-colors hover:bg-[#fff6d8]"
+              >
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-cream text-2xl">{info.emoji}</span>
+                <span>
+                  <span className="block font-black">{info.label}</span>
+                  <span className="block text-sm font-semibold text-mute">{info.hint}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </Modal>
+  );
+}
+
+function QuestionsTab({
+  doc,
+  update,
+  onGoPeople,
+}: {
+  doc: GameDoc;
+  update: (fn: (d: GameDoc) => GameDoc) => void;
+  onGoPeople: () => void;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [personFilter, setPersonFilter] = useState<string>("");
-  const [showAdd, setShowAdd] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const people = needsPeople(doc);
+  const missingPeople = people && doc.people.length < 2;
 
   const setQuestions = (fn: (qs: Question[]) => Question[]) => update((d) => ({ ...d, questions: fn(d.questions) }));
 
@@ -395,83 +518,98 @@ function QuestionsTab({ doc, update }: { doc: GameDoc; update: (fn: (d: GameDoc)
     const q = blankQuestion(type);
     setQuestions((qs) => [...qs, q]);
     setExpanded(q.id);
-    setShowAdd(false);
+    setPicking(false);
     setTimeout(() => document.getElementById(`q-${q.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
   };
 
-  const q = query.trim().toLowerCase();
+  const term = query.trim().toLowerCase();
   const visible = doc.questions
     .map((question, index) => ({ question, index }))
     .filter(({ question }) => {
       if (personFilter && question.aboutPersonId !== personFilter && !question.correct.includes(personFilter)) return false;
-      if (q && !question.prompt.toLowerCase().includes(q) && !question.note.toLowerCase().includes(q)) return false;
+      if (term && !question.prompt.toLowerCase().includes(term) && !question.note.toLowerCase().includes(term)) return false;
       return true;
     });
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <button onClick={() => setShowAdd((s) => !s)} className="btn btn-primary h-12 px-5 text-xl">
-            + سؤال
+    <div className="flex flex-col gap-3">
+      {doc.questions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setPicking(true)} className="abtn abtn-primary">
+            + سؤال جديد
           </button>
-          {showAdd && (
-            <div className="chunk-sm absolute start-0 top-14 z-20 grid w-72 gap-1 bg-card p-2">
-              {QUESTION_TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => addQuestion(t)}
-                  className="flex items-start gap-2 rounded-lg px-2 py-2 text-start hover:bg-cream"
+          {people && (
+            <>
+              <button onClick={() => setDialog({ kind: "photos", personId: null })} className="abtn">
+                📸 رفع صور
+              </button>
+              <button onClick={() => setDialog({ kind: "facts", personId: null })} className="abtn">
+                📝 لصق معلومات
+              </button>
+            </>
+          )}
+          {doc.questions.length > 3 && (
+            <div className="flex w-full flex-wrap gap-2 sm:ms-auto sm:w-auto">
+              {doc.people.length > 0 && (
+                <select
+                  value={personFilter}
+                  onChange={(e) => setPersonFilter(e.target.value)}
+                  className="ainput h-10 w-auto flex-1 sm:flex-none"
+                  aria-label="فلترة حسب الشخص"
                 >
-                  <span className="text-xl">{QUESTION_TYPE_INFO[t].emoji}</span>
-                  <span>
-                    <span className="block font-extrabold">{QUESTION_TYPE_INFO[t].label}</span>
-                    <span className="block text-xs font-bold text-mute">{QUESTION_TYPE_INFO[t].hint}</span>
-                  </span>
-                </button>
-              ))}
+                  <option value="">كل الأشخاص</option>
+                  {doc.people.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="🔍 بحث في الأسئلة"
+                className="ainput h-10 flex-1 sm:w-48 sm:flex-none"
+              />
             </div>
           )}
         </div>
-        <button onClick={() => setDialog({ kind: "photos", personId: null })} className="btn btn-ghost h-12 px-4 text-lg">
-          📸 رفع صور
-        </button>
-        <button onClick={() => setDialog({ kind: "facts", personId: null })} className="btn btn-ghost h-12 px-4 text-lg">
-          📝 لصق معلومات
-        </button>
-        <div className="ms-auto flex flex-wrap gap-2">
-          {doc.people.length > 0 && (
-            <select
-              value={personFilter}
-              onChange={(e) => setPersonFilter(e.target.value)}
-              className="chunk-sm h-11 bg-card px-2 font-bold"
-              aria-label="فلترة حسب الشخص"
-            >
-              <option value="">كل الأشخاص</option>
-              {doc.people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="بحث…"
-            className="chunk-sm h-11 w-40 bg-card px-3 font-bold outline-none"
-          />
-        </div>
-      </div>
+      )}
 
       {doc.questions.length === 0 ? (
-        <div className="chunk flex flex-col items-center gap-3 bg-card p-10 text-center">
+        <div className="panel flex flex-col items-center gap-4 p-8 text-center sm:p-10">
           <span className="text-5xl">❓</span>
-          <p className="font-display text-2xl">ما فيه أسئلة للحين</p>
-          <p className="max-w-md font-bold text-mute">
-            أضف سؤال بأي نوع، أو ارفع صور الشلة دفعة وحدة (كل صورة تصير سؤال «مين صوّرها؟»)، أو الصق معلومات سطر بسطر.
-          </p>
+          <div>
+            <p className="font-display text-2xl">ما فيه أسئلة للحين</p>
+            <p className="mx-auto mt-1 max-w-md text-sm font-semibold text-mute">
+              {missingPeople
+                ? "أول خطوة: أضف الأشخاص (هم الإجابات). بعدها ارفع صور كل واحد دفعة وحدة."
+                : people
+                  ? "أسرع طريقة: ارفع صور كل شخص دفعة وحدة — كل صورة تصير سؤال «مين صوّرها؟». أو الصق معلومات سطر بسطر."
+                : "اختار نوع السؤال واكتب أول سؤال."}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {missingPeople ? (
+              <button onClick={onGoPeople} className="abtn abtn-primary abtn-lg">
+                👥 أضف الأشخاص
+              </button>
+            ) : (
+              people && (
+                <>
+                  <button onClick={() => setDialog({ kind: "photos", personId: null })} className="abtn abtn-primary abtn-lg">
+                    📸 رفع صور
+                  </button>
+                  <button onClick={() => setDialog({ kind: "facts", personId: null })} className="abtn abtn-lg">
+                    📝 لصق معلومات
+                  </button>
+                </>
+              )
+            )}
+            <button onClick={() => setPicking(true)} className={`abtn abtn-lg ${people ? "" : "abtn-primary"}`}>
+              + سؤال جديد
+            </button>
+          </div>
         </div>
       ) : visible.length === 0 ? (
         <p className="py-8 text-center font-bold text-mute">ما فيه أسئلة تطابق البحث</p>
@@ -486,7 +624,11 @@ function QuestionsTab({ doc, update }: { doc: GameDoc; update: (fn: (d: GameDoc)
                 people={doc.people}
                 expanded={expanded === question.id}
                 onToggle={() => setExpanded((e) => (e === question.id ? null : question.id))}
-                onChange={(next) => setQuestions((qs) => qs.map((x) => (x.id === next.id ? next : x)))}
+                onChange={(next) =>
+                  setQuestions((qs) =>
+                    qs.map((x) => (x.id === question.id ? (typeof next === "function" ? next(x) : next) : x)),
+                  )
+                }
                 onMove={(delta) =>
                   setQuestions((qs) => {
                     const i = qs.findIndex((x) => x.id === question.id);
@@ -517,6 +659,7 @@ function QuestionsTab({ doc, update }: { doc: GameDoc; update: (fn: (d: GameDoc)
           ))}
         </ul>
       )}
+      {picking && <TypePicker onPick={addQuestion} onClose={() => setPicking(false)} />}
       <BulkDialog dialog={dialog} doc={doc} update={update} onClose={() => setDialog(null)} />
     </div>
   );
