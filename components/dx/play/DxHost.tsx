@@ -43,16 +43,16 @@ export function DxHost({ creds }: { creds: HostCreds }) {
 
   return (
     <PlayProvider config={design.game} assets={design.assets} dispatch={dispatch}>
-      <ConfirmProvider>
-        <DxRoot className="dx-tv">
+      <DxRoot className="dx-tv">
+        <ConfirmProvider>
           {!connected && <div className="conn-banner">في مشكلة بالاتصال… نحاول نرجع</div>}
           {view.status === "LOBBY" || !view.match ? (
             <Lobby view={view} game={design.game} creds={creds} mutate={mutate} />
           ) : (
             <Table view={view} game={design.game} />
           )}
-        </DxRoot>
-      </ConfirmProvider>
+        </ConfirmProvider>
+      </DxRoot>
     </PlayProvider>
   );
 }

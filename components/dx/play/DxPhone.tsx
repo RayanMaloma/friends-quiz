@@ -55,8 +55,8 @@ export function DxPhone({ creds }: { creds: PlayerCreds }) {
 
   return (
     <PlayProvider config={design.game} assets={design.assets} dispatch={dispatch}>
-      <ConfirmProvider>
-        <DxRoot className="dx-phone">
+      <DxRoot className="dx-phone">
+        <ConfirmProvider>
           {!connected && <div className="conn-banner">في مشكلة بالاتصال… نحاول نرجع</div>}
           <header className="phone-head">
             <span className="strong">{view.me.name}</span>
@@ -84,8 +84,8 @@ export function DxPhone({ creds }: { creds: PlayerCreds }) {
           ) : (
             <PhoneGame s={s} meId={view.me.playerId} known={view.known} />
           )}
-        </DxRoot>
-      </ConfirmProvider>
+        </ConfirmProvider>
+      </DxRoot>
     </PlayProvider>
   );
 }

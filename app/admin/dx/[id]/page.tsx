@@ -232,11 +232,11 @@ export default function DxEditorPage() {
       )}
 
       <StudioProvider doc={{ config: doc.config, assets: doc.assets }} onChange={onChange} onTab={setTab}>
-        <ConfirmProvider>
-          <DxRoot fill={false} className="dx-studio">
+        <DxRoot fill={false} className="dx-studio">
+          <ConfirmProvider>
             <Studio tab={tab} onTab={setTab} />
-          </DxRoot>
-        </ConfirmProvider>
+          </ConfirmProvider>
+        </DxRoot>
       </StudioProvider>
     </div>
   );
