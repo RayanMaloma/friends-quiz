@@ -45,6 +45,8 @@ export async function POST(req: Request) {
       const snapshot = await getSnapshot(sessionId);
       if (!snapshot) return fail("GAME_NOT_FOUND", 404);
       if (snapshot.session.host_token_hash !== hostHash) return fail("FORBIDDEN", 403);
+      // Deduction rooms have their own TV screen (/dx/host/[id], /api/dx).
+      if (snapshot.session.kind === "deduction") return fail("DX_SESSION", 409);
       return ok({ view: buildHostView(snapshot) });
     };
 

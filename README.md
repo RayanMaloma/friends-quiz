@@ -41,6 +41,30 @@ Templates give a starting point: **مين صوّر الصورة؟**, **عن مي
 
 Facts work the same way: **📝 معلومات** on a person's card, one fact per line.
 
+## Hidden-role games (أدوار سرّية)
+
+A second kind of game: a Secret-Hitler-style deduction game (two templates: **هتلر السرّي**, **مجلس الظلال**),
+fully customizable in `/admin/dx/[id]` (identity, themes, board, cards, factions & roles, rules, images).
+
+**The TV shows the board. Each phone holds one player's secrets.**
+
+| On the TV (public) | On the player's phone (private) |
+| --- | --- |
+| Lobby + QR, seat order, board, tracks, election tracker, log, results | Role card — **hold to flip**, let go and it hides (also hides when the app goes to background); teammates you know |
+| Host taps the nomination and power targets the table agreed on out loud | Ballot: yes / no (changeable until the reveal) |
+| Vote progress (who still has to vote), reveal (percentage or names) | President's 3 cards (discard 1), Chancellor's 2 cards (enact 1, or ask for a veto), veto answer |
+| "X is choosing on their phone" with face-down cards | Investigation result and deck peek — leader's phone only |
+| Host controls (skip, set leader, adjust tracks, declare winner) | "Look at the TV" status, "you're out", win/lose at the end |
+
+How it's built: the engine (`lib/dx/engine`) runs **on the server**. Every action goes through `/api/dx`:
+identify the device → check this device may send this action now (`lib/dx/actions.ts`) → run the engine →
+save with an optimistic lock (`match_version`, simultaneous votes retry, none is lost). Each device gets only
+`redactFor(itself)`: nobody else's role, hand, ballot or power result is ever sent to it. Rooms use the same
+codes and `/join` flow as quizzes; new players can't join once the roles are dealt (a released player rejoins
+by name). Migration: `supabase/migrations/20261018000000_deduction.sql`.
+
+The default content recreates the mechanics of *Secret Hitler* (CC BY-NC-SA 4.0) as editable data.
+
 ## Pages
 
 | URL | Who | What |
@@ -53,6 +77,9 @@ Facts work the same way: **📝 معلومات** on a person's card, one fact pe
 | `/admin` | admin | Games: create from template, edit, duplicate, import/export JSON, archive, delete |
 | `/admin/games/[id]` | admin | The editor (autosaves) |
 | `/admin/sessions` | admin | Rooms played: status, results, end a stuck room, delete |
+| `/admin/dx/[id]` | admin | Hidden-role game editor (autosaves) |
+| `/dx/host/[id]` | TV | Hidden-role game: lobby, board, public steps |
+| `/dx/play/[id]` | players | Hidden-role game: the private phone screen |
 
 ## How it works
 
@@ -102,7 +129,7 @@ npm run dev
 ### Supabase
 
 1. **SQL Editor** → run each file in `supabase/migrations/` **in order** (all are safe to re-run):
-   `20261004000000_init.sql`, `20261004010000_open_players.sql`, **`20261009000000_platform.sql`**.
+   `20261004000000_init.sql`, `20261004010000_open_players.sql`, **`20261009000000_platform.sql`**, **`20261018000000_deduction.sql`** (hidden-role games).
    Already ran the first two? Just run the third. It replaces the old session tables (old rooms are
    dropped). With the Supabase CLI: `supabase db push`.
    The dashboard shows a warning until this migration is applied.

@@ -13,7 +13,8 @@ import {
   recordFailedLogin,
   setAdminCookie,
 } from "@/lib/server/admin";
-import { getGame, listGames, saveGame } from "@/lib/server/games";
+import { getDxGame, getGame, getGameKind, listGames, saveDxGame, saveGame } from "@/lib/server/games";
+import { isDxDoc, newDxDoc, normalizeDxDoc, validateDxDoc } from "@/lib/dx/doc";
 import { legacyGameDoc } from "@/lib/server/legacy";
 import { isUuid } from "@/lib/server/tokens";
 import { normalizeGameDoc, TEMPLATES, validateGameDoc } from "@/lib/game/doc";
@@ -133,9 +134,12 @@ export async function POST(req: Request) {
         const status = body.status as GameRecordStatus;
         if (!STATUSES.includes(status)) return fail("BAD_REQUEST");
         if (status === "published") {
-          const game = await getGame(body.id);
-          if (!game) return fail("NOT_FOUND", 404);
-          const issues = validateGameDoc(game.doc);
+          const kind = await getGameKind(body.id);
+          if (!kind) return fail("NOT_FOUND", 404);
+          const issues =
+            kind === "deduction"
+              ? validateDxDoc((await getDxGame(body.id))!.doc)
+              : validateGameDoc((await getGame(body.id))!.doc);
           if (issues.length > 0) return Response.json({ ok: false, error: "PUBLISH_BLOCKED", issues }, { status: 400 });
         }
         const res = await rpc<RpcResult>("fq_admin_set_game_status", { p_id: body.id, p_status: status });
@@ -147,6 +151,63 @@ export async function POST(req: Request) {
         if (!isUuid(body.id)) return fail("NOT_FOUND", 404);
         await rpc("fq_admin_delete_game", { p_id: body.id });
         return ok({});
+      }
+
+      // ---- Deduction games ---------------------------------------------
+      case "dxCreate": {
+        const res = await saveDxGame(null, newDxDoc(String(body.template ?? "classic")), null, "draft");
+        if (!res.ok) return fail(res.error);
+        return ok({ game: res.game });
+      }
+
+      case "dxGet": {
+        if (!isUuid(body.id)) return fail("NOT_FOUND", 404);
+        const game = await getDxGame(body.id);
+        if (!game) return fail("NOT_FOUND", 404);
+        return ok({ game, issues: validateDxDoc(game.doc) });
+      }
+
+      case "dxSave": {
+        if (!isUuid(body.id)) return fail("NOT_FOUND", 404);
+        const version = typeof body.version === "number" ? body.version : null;
+        const { doc, errors } = normalizeDxDoc(body.doc);
+        if (!doc) return Response.json({ ok: false, error: "DX_INVALID", errors }, { status: 400 });
+        const current = await getDxGame(body.id);
+        if (!current) return fail("NOT_FOUND", 404);
+        const issues = validateDxDoc(doc);
+        const status = current.status === "published" && issues.length > 0 ? "draft" : null;
+        const res = await saveDxGame(body.id, doc, version, status);
+        if (!res.ok) {
+          if (res.error === "VERSION_CONFLICT") return Response.json(res, { status: 409 });
+          return fail(res.error, res.error === "NOT_FOUND" ? 404 : 400);
+        }
+        return ok({ game: res.game, issues });
+      }
+
+      case "dxImport": {
+        // Accepts an exported file ({ doc } or the doc itself).
+        const raw = body.doc && typeof body.doc === "object" && "doc" in (body.doc as object)
+          ? (body.doc as { doc: unknown }).doc
+          : body.doc;
+        if (!isDxDoc(raw)) return fail("DX_INVALID");
+        const { doc, errors } = normalizeDxDoc(raw);
+        if (!doc) return Response.json({ ok: false, error: "DX_INVALID", errors }, { status: 400 });
+        const res = await saveDxGame(null, doc, null, "draft");
+        if (!res.ok) return fail(res.error);
+        return ok({ game: res.game });
+      }
+
+      case "dxDuplicate": {
+        if (!isUuid(body.id)) return fail("NOT_FOUND", 404);
+        const game = await getDxGame(body.id);
+        if (!game) return fail("NOT_FOUND", 404);
+        const copy = structuredClone(game.doc);
+        copy.config.identity.name = `${copy.config.identity.name} (نسخة)`.slice(0, 60);
+        const { doc } = normalizeDxDoc(copy);
+        if (!doc) return fail("DX_INVALID");
+        const res = await saveDxGame(null, doc, null, "draft");
+        if (!res.ok) return fail(res.error);
+        return ok({ game: res.game });
       }
 
       case "listSessions": {

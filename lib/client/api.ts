@@ -5,7 +5,7 @@ export type ApiResult<T> =
 const TIMEOUT_MS = 10000;
 
 export async function api<T = Record<string, unknown>>(
-  endpoint: "/api/host" | "/api/guest" | "/api/admin",
+  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx",
   body: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
   const controller = new AbortController();
@@ -34,7 +34,7 @@ export async function api<T = Record<string, unknown>>(
 }
 
 /** Errors that mean "this device can't continue in this game" (vs. transient). */
-export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND"]);
+export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION"]);
 
 const MESSAGES: Record<string, string> = {
   GAME_NOT_FOUND: "رمز اللعبة غير صحيح",
@@ -65,7 +65,18 @@ const MESSAGES: Record<string, string> = {
   NETWORK: "في مشكلة بالاتصال، جرّب مرة ثانية",
   SERVER_NOT_CONFIGURED: "السيرفر مو مجهز (إعدادات Supabase ناقصة)",
   CODE_EXHAUSTED: "ما قدرنا نسوي رمز جديد، جرّب مرة ثانية",
+  DX_GAME_BROKEN: "اللعبة فيها مشاكل — صلّحها من لوحة التحكم",
+  NOT_STARTED: "اللعبة ما بدأت",
+  NOT_YOUR_TURN: "مو دورك الحين",
+  BUSY: "ضغط كثير، جرّب مرة ثانية",
+  GAME_OVER: "اللعبة خلصت",
+  DX_INVALID: "تصميم اللعبة فيه أخطاء",
 };
+
+/** Like errorMessage, but prefers the server's own explanation (game rule errors). */
+export function resultMessage(res: { error: string; message?: unknown }): string {
+  return typeof res.message === "string" && res.message ? res.message : errorMessage(res.error);
+}
 
 export function errorMessage(code: string | null | undefined): string {
   if (!code) return "";

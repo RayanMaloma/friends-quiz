@@ -14,6 +14,11 @@ import { Modal, Segmented, StatusPill } from "@/components/admin/ui";
 
 type Filter = "active" | "published" | "draft" | "archived";
 
+const DX_TEMPLATES = [
+  { id: "classic", emoji: "🕵️", title: "هتلر السرّي", description: "الليبراليون ضد الفاشيين، ٥–١٠ لاعبين. الأسماء والبطاقات والقوانين كلها قابلة للتعديل." },
+  { id: "shadow", emoji: "🌒", title: "مجلس الظلال", description: "نفس اللعبة بشكل فانتازيا مظلمة: الحرّاس ضد الطائفة والليتش." },
+];
+
 export default function AdminGamesPage() {
   const router = useRouter();
   const [games, setGames] = useState<GameSummary[] | null>(null);
@@ -42,7 +47,7 @@ export default function AdminGamesPage() {
       setError(errorMessage(res.error));
       return;
     }
-    router.push(`/admin/games/${res.game.id}`);
+    router.push(action.startsWith("dx") ? `/admin/dx/${res.game.id}` : `/admin/games/${res.game.id}`);
   }
 
   async function act(id: string, action: string, extra: Record<string, unknown> = {}) {
@@ -54,10 +59,10 @@ export default function AdminGamesPage() {
     await load();
   }
 
-  async function play(id: string) {
+  async function play(id: string, dx: boolean) {
     setBusy(id);
     setError(null);
-    const res = await api<{ sessionId: string; code: string; hostToken: string }>("/api/host", {
+    const res = await api<{ sessionId: string; code: string; hostToken: string }>(dx ? "/api/dx" : "/api/host", {
       action: "create",
       gameId: id,
     });
@@ -67,14 +72,15 @@ export default function AdminGamesPage() {
       return;
     }
     hostStore.save({ sessionId: res.sessionId, code: res.code, hostToken: res.hostToken });
-    router.push(`/host/${res.sessionId}`);
+    router.push(dx ? `/dx/host/${res.sessionId}` : `/host/${res.sessionId}`);
   }
 
   async function importFile(file: File | undefined) {
     if (!file) return;
     try {
       const doc = JSON.parse(await file.text());
-      await create("importGame", { doc });
+      const dx = doc?.doc?.kind === "deduction" || doc?.kind === "deduction";
+      await create(dx ? "dxImport" : "importGame", { doc });
     } catch {
       setError("الملف مو ملف لعبة صالح (JSON)");
     }
@@ -131,7 +137,7 @@ export default function AdminGamesPage() {
           ) : (
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visible.map((g) => (
-                <GameCard key={g.id} game={g} busy={busy === g.id} onPlay={() => play(g.id)} onAct={(a, x) => act(g.id, a, x)} />
+                <GameCard key={g.id} game={g} busy={busy === g.id} onPlay={() => play(g.id, g.kind === "deduction")} onAct={(a, x) => act(g.id, a, x)} />
               ))}
             </ul>
           )}
@@ -146,6 +152,23 @@ export default function AdminGamesPage() {
                 <button
                   disabled={!!busy}
                   onClick={() => create("createGame", { template: t.id satisfies TemplateId })}
+                  className="panel-sm flex h-full w-full flex-col items-start gap-1 bg-card p-4 text-start transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+                >
+                  <span className="text-3xl">{t.emoji}</span>
+                  <span className="font-display text-xl">{t.title}</span>
+                  <span className="text-sm font-bold text-mute">{t.description}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <h3 className="mt-2 font-display text-2xl">🕵️ ألعاب الأدوار السرّية</h3>
+          <p className="-mt-2 text-sm font-bold text-mute">لعبة طاولة: كل لاعب يشوف دوره السرّي في جواله، يصوّتون من جوالاتهم، واللوحة على التلفزيون.</p>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {DX_TEMPLATES.map((t) => (
+              <li key={t.id}>
+                <button
+                  disabled={!!busy}
+                  onClick={() => create("dxCreate", { template: t.id })}
                   className="panel-sm flex h-full w-full flex-col items-start gap-1 bg-card p-4 text-start transition-transform hover:-translate-y-0.5 disabled:opacity-50"
                 >
                   <span className="text-3xl">{t.emoji}</span>
@@ -193,6 +216,8 @@ function GameCard({
   onAct: (action: string, extra?: Record<string, unknown>) => void;
 }) {
   const [menu, setMenu] = useState(false);
+  const dx = g.kind === "deduction";
+  const editHref = dx ? `/admin/dx/${g.id}` : `/admin/games/${g.id}`;
   const updated = new Date(g.updatedAt).toLocaleDateString("ar-SA-u-nu-latn", { day: "numeric", month: "short" });
   return (
     <li className="panel relative flex flex-col gap-3 bg-card p-4">
@@ -204,13 +229,13 @@ function GameCard({
           {g.emoji}
         </span>
         <div className="min-w-0 flex-1">
-          <Link href={`/admin/games/${g.id}`} className="block truncate font-display text-2xl leading-tight hover:underline">
+          <Link href={editHref} className="block truncate font-display text-2xl leading-tight hover:underline">
             {g.title}
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-mute">
             <StatusPill status={g.status} />
-            <span>{questionsLabel(g.questionCount)}</span>
-            {g.peopleCount > 0 && <span>· {peopleLabel(g.peopleCount)}</span>}
+            <span>{dx ? `أدوار سرّية · ${g.minPlayers ?? "?"}–${g.maxPlayers ?? "?"} لاعبين` : questionsLabel(g.questionCount)}</span>
+            {!dx && g.peopleCount > 0 && <span>· {peopleLabel(g.peopleCount)}</span>}
             {g.sessionCount > 0 && <span>· لُعبت {g.sessionCount} مرة</span>}
             <span>· {updated}</span>
           </div>
@@ -221,7 +246,7 @@ function GameCard({
       </div>
       {menu && (
         <div className="panel-sm absolute end-4 top-16 z-10 flex min-w-40 flex-col bg-card py-1" onMouseLeave={() => setMenu(false)}>
-          <MenuItem onClick={() => onAct("duplicateGame")}>نسخ اللعبة</MenuItem>
+          <MenuItem onClick={() => onAct(dx ? "dxDuplicate" : "duplicateGame")}>نسخ اللعبة</MenuItem>
           {g.status === "archived" ? (
             <MenuItem onClick={() => onAct("setStatus", { status: "draft" })}>استرجاع من الأرشيف</MenuItem>
           ) : (
@@ -238,12 +263,12 @@ function GameCard({
         </div>
       )}
       <div className="flex gap-2">
-        <Link href={`/admin/games/${g.id}`} className="abtn flex-1">
+        <Link href={editHref} className="abtn flex-1">
           تعديل
         </Link>
         <button
           onClick={onPlay}
-          disabled={busy || g.status === "archived" || g.questionCount === 0}
+          disabled={busy || g.status === "archived" || (!dx && g.questionCount === 0)}
           className="abtn abtn-primary flex-1"
         >
           {busy ? <Spinner className="size-4" /> : "📺"} تشغيل
