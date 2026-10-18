@@ -140,7 +140,7 @@ function Join() {
   // ---- Step 2: name + optional link to one of the game's people (text only, no portraits) ----
   if (lookup) {
     return (
-      <main className="safe-pad mx-auto flex min-h-dvh max-w-lg flex-col gap-6 pb-36" style={accentStyle(lookup.accent)}>
+      <main className="safe-pad mx-auto flex min-h-dvh max-w-lg flex-col gap-6 bottom-bar-space" style={accentStyle(lookup.accent)}>
         <header className="flex items-center justify-between">
           <button onClick={() => setLookup(null)} className="btn btn-ghost h-11 px-4 text-lg">
             رجوع

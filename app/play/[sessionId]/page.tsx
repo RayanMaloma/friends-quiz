@@ -237,7 +237,7 @@ function QuestionScreen({
   if (timeUp) return <GuestStatus emoji="⏰" title="خلص الوقت!" subtitle="تابع الشاشة 👀" accent />;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 pb-36">
+    <div className="flex flex-1 flex-col gap-4 bottom-bar-space">
       {q.timer && remaining !== null && <TimeBar remaining={remaining} limit={q.timer.limit} />}
       {(q.prompt || q.image) && (
         <div className="chunk anim-pop relative mt-1 overflow-hidden bg-card">
