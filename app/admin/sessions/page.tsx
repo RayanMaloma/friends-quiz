@@ -15,7 +15,10 @@ interface SessionRow {
   game_id: string | null;
   title: string;
   emoji: string;
-  status: GameStatus;
+  status: GameStatus | "PLAYING";
+  kind?: "quiz" | "deduction";
+  /** Deduction: current round. */
+  round?: number | null;
   current_index: number;
   total_questions: number;
   player_count: number;
@@ -23,8 +26,9 @@ interface SessionRow {
   finished_at: string | null;
 }
 
-const STATUS_LABEL: Record<GameStatus, string> = {
+const STATUS_LABEL: Record<GameStatus | "PLAYING", string> = {
   LOBBY: "بانتظار اللاعبين",
+  PLAYING: "شغّالة",
   QUESTION: "شغّالة",
   REVEAL: "شغّالة",
   LEADERBOARD: "شغّالة",
@@ -102,7 +106,9 @@ export default function SessionsPage() {
                   </p>
                   <p className="text-xs font-bold text-mute">
                     <span className={live ? "text-mint" : ""}>{STATUS_LABEL[r.status]}</span>
-                    {r.status !== "LOBBY" && r.status !== "FINISHED" && ` · سؤال ${r.current_index + 1}/${r.total_questions}`}
+                    {r.kind === "deduction"
+                      ? ` · أدوار سرّية${r.round ? ` · الجولة ${r.round}` : ""}`
+                      : r.status !== "LOBBY" && r.status !== "FINISHED" && ` · سؤال ${r.current_index + 1}/${r.total_questions}`}
                     {` · ${playersLabel(r.player_count)} · ${formatDate(r.created_at)}`}
                   </p>
                 </div>
@@ -112,9 +118,11 @@ export default function SessionsPage() {
                       فتح التلفزيون
                     </Link>
                   )}
-                  <button onClick={() => showResults(r)} disabled={busy === r.id} className="abtn abtn-sm">
-                    النتائج
-                  </button>
+                  {r.kind !== "deduction" && (
+                    <button onClick={() => showResults(r)} disabled={busy === r.id} className="abtn abtn-sm">
+                      النتائج
+                    </button>
+                  )}
                   {live && (
                     <button onClick={() => act(r, "endSession")} disabled={busy === r.id} className="abtn abtn-sm">
                       إنهاء

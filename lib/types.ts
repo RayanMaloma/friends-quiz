@@ -92,8 +92,14 @@ export interface GameDoc {
 
 export type GameRecordStatus = "draft" | "published" | "archived";
 
+export type GameKind = "quiz" | "deduction";
+
 export interface GameSummary {
   id: string;
+  kind: GameKind;
+  /** Deduction games: how many players can play. */
+  minPlayers: number | null;
+  maxPlayers: number | null;
   title: string;
   emoji: string;
   cover: string | null;
@@ -162,6 +168,11 @@ export interface Snapshot {
     game_id: string | null;
     config: SessionConfig;
     created_at: string;
+    /** "quiz" (questions) or "deduction" (hidden roles). Missing before migration 4. */
+    kind?: "quiz" | "deduction";
+    /** Deduction only: the live MatchState (server only — contains every secret). */
+    match?: unknown;
+    match_version?: number;
   };
   players: { id: string; display_name: string; person_id: string | null; token_hash: string | null }[];
   rounds: {

@@ -139,6 +139,12 @@ function HostGame({ creds }: { creds: HostCreds }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // A deduction room: hand over to its own TV screen.
+  useEffect(() => {
+    if (fatalError === "DX_SESSION") window.location.replace(`/dx/host/${sessionId}`);
+  }, [fatalError, sessionId]);
+
+  if (fatalError === "DX_SESSION") return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
   if (fatalError) {
     return (
       <FullScreenCenter>

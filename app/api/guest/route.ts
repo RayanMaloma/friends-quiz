@@ -91,6 +91,8 @@ export async function POST(req: Request) {
     const respondWithState = async () => {
       const snapshot = await getSnapshot(sessionId);
       if (!snapshot) return fail("GAME_NOT_FOUND", 404);
+      // Deduction rooms have their own controller (/dx/play/[id], /api/dx).
+      if (snapshot.session.kind === "deduction") return fail("DX_SESSION", 409);
       const player = snapshot.players.find((p) => p.token_hash === tokenHash);
       const view = player ? buildGuestView(snapshot, player.id) : null;
       if (!view) return fail("NOT_A_PLAYER", 401);

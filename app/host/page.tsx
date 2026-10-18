@@ -16,7 +16,7 @@ export default function HostEntryPage() {
   const router = useRouter();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
-  const [resumable, setResumable] = useState<HostCreds | null>(null);
+  const [resumable, setResumable] = useState<(HostCreds & { dx?: boolean }) | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -44,6 +44,12 @@ export default function HostEntryPage() {
         hostToken: last.hostToken,
       }).then((res) => {
         if (res.ok && res.view.status !== "FINISHED") setResumable(last);
+        // A deduction room answers on its own endpoint.
+        else if (!res.ok && res.error === "DX_SESSION") {
+          void api<{ view: { status: string } }>("/api/dx", { action: "state", as: "host", ...last }).then((dx) => {
+            if (dx.ok && dx.view.status !== "FINISHED") setResumable({ ...last, dx: true });
+          });
+        }
       });
     }
   }, [load]);
@@ -52,7 +58,8 @@ export default function HostEntryPage() {
     if (creating) return;
     setCreating(gameId);
     setError(null);
-    const res = await api<{ sessionId: string; code: string; hostToken: string }>("/api/host", {
+    const dx = games?.find((g) => g.id === gameId)?.kind === "deduction";
+    const res = await api<{ sessionId: string; code: string; hostToken: string }>(dx ? "/api/dx" : "/api/host", {
       action: "create",
       gameId,
     });
@@ -62,7 +69,7 @@ export default function HostEntryPage() {
       return;
     }
     hostStore.save({ sessionId: res.sessionId, code: res.code, hostToken: res.hostToken });
-    router.push(`/host/${res.sessionId}`);
+    router.push(dx ? `/dx/host/${res.sessionId}` : `/host/${res.sessionId}`);
   }
 
   if (needsLogin) {
@@ -78,7 +85,7 @@ export default function HostEntryPage() {
       <Brand className="anim-pop relative text-7xl" />
 
       {resumable && (
-        <Link href={`/host/${resumable.sessionId}`} className="btn btn-primary anim-rise relative h-20 px-10 text-3xl">
+        <Link href={resumable.dx ? `/dx/host/${resumable.sessionId}` : `/host/${resumable.sessionId}`} className="btn btn-primary anim-rise relative h-20 px-10 text-3xl">
           كمّل اللعبة الحالية ({resumable.code})
         </Link>
       )}
@@ -132,7 +139,7 @@ function GameGrid({
         <li key={g.id} className="anim-rise" style={{ animationDelay: `${i * 60}ms` }}>
           <button
             onClick={() => onStart(g.id)}
-            disabled={!!creating || g.questionCount === 0}
+            disabled={!!creating || (g.kind === "quiz" && g.questionCount === 0)}
             className="chunk group flex w-full flex-col items-start gap-2 bg-card p-5 text-start transition-transform hover:-translate-y-1 disabled:opacity-50"
           >
             <span
@@ -143,8 +150,10 @@ function GameGrid({
             </span>
             <span className="font-display text-3xl leading-tight">{g.title}</span>
             <span className="text-sm font-bold text-mute">
-              {questionsLabel(g.questionCount)}
-              {g.peopleCount > 0 ? ` · ${peopleLabel(g.peopleCount)}` : ""}
+              {g.kind === "deduction"
+                ? `أدوار سرّية · ${g.minPlayers ?? "?"}–${g.maxPlayers ?? "?"} لاعبين`
+                : questionsLabel(g.questionCount)}
+              {g.kind === "quiz" && g.peopleCount > 0 ? ` · ${peopleLabel(g.peopleCount)}` : ""}
               {g.status === "draft" ? " · مسودة" : ""}
             </span>
             <span className="mt-1 font-display text-xl text-ink/70 group-hover:text-ink">افتح الغرفة ←</span>

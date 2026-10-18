@@ -6,7 +6,7 @@ import { AdminGate, AdminShell, type AdminWarning } from "@/components/admin/Adm
 export const metadata: Metadata = { title: "لوحة التحكم — ألعاب الشلّة" };
 
 /** Must match fq_schema_version() in the latest migration. */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 async function schemaVersion(): Promise<number> {
   try {
@@ -24,7 +24,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (version < SCHEMA_VERSION) {
     warnings.push({
       level: "blocking",
-      text: "قاعدة البيانات تحتاج تحديث: افتح Supabase ← SQL Editor وشغّل الملف supabase/migrations/20261009000000_platform.sql",
+      text: version < 3
+        ? "قاعدة البيانات تحتاج تحديث: افتح Supabase ← SQL Editor وشغّل الملفات supabase/migrations/20261009000000_platform.sql ثم 20261018000000_deduction.sql"
+        : "قاعدة البيانات تحتاج تحديث لألعاب الأدوار السرّية: افتح Supabase ← SQL Editor وشغّل الملف supabase/migrations/20261018000000_deduction.sql",
     });
   }
   if (isDevPassword()) {

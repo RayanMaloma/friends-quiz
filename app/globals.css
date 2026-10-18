@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The deduction game styles itself (app/dx.css); do not generate utilities from its class names. */
+@source not "../components/dx";
 
 /* Light, chunky party-game theme: cream stage, ink outlines, hard offset shadows. */
 @theme {
