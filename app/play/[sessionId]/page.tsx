@@ -46,12 +46,13 @@ function Controller({ creds }: { creds: PlayerCreds }) {
   );
   const { view, receivedAt, fatalError, connected, mutate, refresh } = useGameSync<GuestView>(sessionId, fetchView);
 
-  // A deduction room: hand over to its own controller.
+  // A deduction or Mafia room: hand over to its own controller.
   useEffect(() => {
     if (fatalError === "DX_SESSION") router.replace(`/dx/play/${sessionId}`);
+    if (fatalError === "MAFIA_SESSION") router.replace(`/mafia/play/${sessionId}`);
   }, [fatalError, router, sessionId]);
 
-  if (fatalError === "DX_SESSION") {
+  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION") {
     return (
       <Shell>
         <div className="flex flex-1 items-center justify-center">

@@ -5,7 +5,7 @@ export type ApiResult<T> =
 const TIMEOUT_MS = 10000;
 
 export async function api<T = Record<string, unknown>>(
-  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx",
+  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia",
   body: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
   const controller = new AbortController();
@@ -34,7 +34,7 @@ export async function api<T = Record<string, unknown>>(
 }
 
 /** Errors that mean "this device can't continue in this game" (vs. transient). */
-export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION"]);
+export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION", "MAFIA_SESSION"]);
 
 const MESSAGES: Record<string, string> = {
   GAME_NOT_FOUND: "رمز اللعبة غير صحيح",
@@ -71,6 +71,13 @@ const MESSAGES: Record<string, string> = {
   BUSY: "ضغط كثير، جرّب مرة ثانية",
   GAME_OVER: "اللعبة خلصت",
   DX_INVALID: "تصميم اللعبة فيه أخطاء",
+  MF_PAUSED: "اللعبة موقّفة مؤقتًا",
+  MF_CLOSED: "انتهى الوقت",
+  MF_DEAD: "أنت طالع من اللعبة",
+  MF_NOT_YOURS: "مو دورك الحين",
+  MF_TARGET: "ما تقدر تختار هذا الشخص",
+  MF_LOCKED: "حققت مع شخص الليلة خلاص",
+  MF_INTRO: "اللعبة بتبدأ بعد لحظات…",
 };
 
 /** Like errorMessage, but prefers the server's own explanation (game rule errors). */

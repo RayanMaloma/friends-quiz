@@ -139,12 +139,13 @@ function HostGame({ creds }: { creds: HostCreds }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // A deduction room: hand over to its own TV screen.
+  // A deduction or Mafia room: hand over to its own TV screen.
   useEffect(() => {
     if (fatalError === "DX_SESSION") window.location.replace(`/dx/host/${sessionId}`);
+    if (fatalError === "MAFIA_SESSION") window.location.replace(`/mafia/host/${sessionId}`);
   }, [fatalError, sessionId]);
 
-  if (fatalError === "DX_SESSION") return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
+  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION") return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
   if (fatalError) {
     return (
       <FullScreenCenter>

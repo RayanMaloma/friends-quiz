@@ -18,6 +18,7 @@ export default function JoinPage() {
 
 type LookupResponse = {
   sessionId: string;
+  kind: "quiz" | "deduction" | "mafia";
   title: string;
   emoji: string;
   accent: Accent;
@@ -26,7 +27,7 @@ type LookupResponse = {
   people: { id: string; name: string }[];
   takenPersonIds: string[];
 };
-type Lookup = LookupResponse & { code: string };
+type Lookup = Omit<LookupResponse, "kind"> & { code: string };
 /** null = regular player; otherwise the id of the game person this player is. */
 type OwnerChoice = string | null;
 
@@ -61,6 +62,11 @@ function Join() {
         setError(errorMessage(res.error));
         return;
       }
+      // Mafia rooms have their own (dark) join screen.
+      if (res.kind === "mafia") {
+        router.replace(`/mafia/join?code=${value}`);
+        return;
+      }
       // Already joined this game on this device? Go straight back in.
       const existing = playerStore.get(res.sessionId);
       if (existing) {
@@ -69,7 +75,8 @@ function Join() {
           sessionId: existing.sessionId,
           playerToken: existing.playerToken,
         });
-        if (state.ok) {
+        // (Deduction rooms answer DX_SESSION: /play hands over to their controller.)
+        if (state.ok || state.error === "DX_SESSION") {
           router.replace(`/play/${existing.sessionId}`);
           return;
         }
@@ -107,6 +114,10 @@ function Join() {
       playerToken: last.playerToken,
     }).then((res) => {
       if (res.ok && res.view.status !== "FINISHED") setResume(last);
+      else if (!res.ok && res.error === "MAFIA_SESSION") {
+        void api<{ view: { status: string } }>("/api/mafia", { action: "state", as: "guest", sessionId: last.sessionId, playerToken: last.playerToken })
+          .then((mf) => { if (mf.ok && mf.view.status !== "FINISHED") setResume(last); });
+      }
     });
   }, [codeParam, doLookup]);
 

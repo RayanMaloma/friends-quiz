@@ -45,6 +45,7 @@ export async function POST(req: Request) {
       if (!res.ok) return fail(res.error, 404);
       return ok({
         sessionId: res.session_id,
+        kind: res.kind ?? "quiz",
         status: res.status,
         title: res.title,
         emoji: res.emoji,
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
       if (!snapshot) return fail("GAME_NOT_FOUND", 404);
       // Deduction rooms have their own controller (/dx/play/[id], /api/dx).
       if (snapshot.session.kind === "deduction") return fail("DX_SESSION", 409);
+      if (snapshot.session.kind === "mafia") return fail("MAFIA_SESSION", 409);
       const player = snapshot.players.find((p) => p.token_hash === tokenHash);
       const view = player ? buildGuestView(snapshot, player.id) : null;
       if (!view) return fail("NOT_A_PLAYER", 401);

@@ -16,7 +16,7 @@ export default function HostEntryPage() {
   const router = useRouter();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
-  const [resumable, setResumable] = useState<(HostCreds & { dx?: boolean }) | null>(null);
+  const [resumable, setResumable] = useState<(HostCreds & { dx?: boolean; mafia?: boolean }) | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -49,10 +49,28 @@ export default function HostEntryPage() {
           void api<{ view: { status: string } }>("/api/dx", { action: "state", as: "host", ...last }).then((dx) => {
             if (dx.ok && dx.view.status !== "FINISHED") setResumable({ ...last, dx: true });
           });
+        } else if (!res.ok && res.error === "MAFIA_SESSION") {
+          void api<{ view: { status: string } }>("/api/mafia", { action: "state", as: "host", ...last }).then((mf) => {
+            if (mf.ok && mf.view.status !== "FINISHED") setResumable({ ...last, mafia: true });
+          });
         }
       });
     }
   }, [load]);
+
+  async function startMafia() {
+    if (creating) return;
+    setCreating("mafia");
+    setError(null);
+    const res = await api<{ sessionId: string; code: string; hostToken: string }>("/api/mafia", { action: "create" });
+    if (!res.ok) {
+      setError(errorMessage(res.error));
+      setCreating(null);
+      return;
+    }
+    hostStore.save({ sessionId: res.sessionId, code: res.code, hostToken: res.hostToken });
+    router.push(`/mafia/host/${res.sessionId}`);
+  }
 
   async function start(gameId: string) {
     if (creating) return;
@@ -85,7 +103,7 @@ export default function HostEntryPage() {
       <Brand className="anim-pop relative text-7xl" />
 
       {resumable && (
-        <Link href={resumable.dx ? `/dx/host/${resumable.sessionId}` : `/host/${resumable.sessionId}`} className="btn btn-primary anim-rise relative h-20 px-10 text-3xl">
+        <Link href={resumable.mafia ? `/mafia/host/${resumable.sessionId}` : resumable.dx ? `/dx/host/${resumable.sessionId}` : `/host/${resumable.sessionId}`} className="btn btn-primary anim-rise relative h-20 px-10 text-3xl">
           كمّل اللعبة الحالية ({resumable.code})
         </Link>
       )}
@@ -93,6 +111,7 @@ export default function HostEntryPage() {
       <section className="relative flex w-full max-w-5xl flex-col gap-4">
         <h1 className="text-center font-display text-4xl">وش نلعب اليوم؟</h1>
         {error && <p className="text-center font-bold text-pink">{error}</p>}
+        <MafiaCard creating={creating} onStart={startMafia} />
         {games === null ? (
           <Spinner className="mx-auto size-8 text-ink" />
         ) : published.length === 0 ? (
@@ -161,5 +180,26 @@ function GameGrid({
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The built-in Mafia game (fixed rules, nothing to set up in the dashboard). */
+function MafiaCard({ creating, onStart }: { creating: string | null; onStart: () => void }) {
+  return (
+    <button
+      onClick={onStart}
+      disabled={!!creating}
+      className="anim-rise group relative flex w-full items-center gap-5 overflow-hidden rounded-3xl border-4 border-ink p-6 text-start shadow-[6px_6px_0_#1b1b1b] transition-transform hover:-translate-y-1 disabled:opacity-60"
+      style={{ background: "radial-gradient(120% 140% at 85% 0%, #490F19 0%, #17191D 45%, #08090B 100%)", color: "#E6DCC9" }}
+    >
+      <span className="grid size-20 shrink-0 place-items-center rounded-2xl border-2 text-5xl" style={{ borderColor: "#C3A46B" }}>
+        {creating === "mafia" ? <Spinner className="size-8" /> : "🌒"}
+      </span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="font-display text-4xl leading-tight" style={{ color: "#C3A46B" }}>المافيا</span>
+        <span className="text-sm font-bold opacity-80">قتلة، شايب، طبيب ومواطنين · ٤–١٢ لاعب · التلفزيون هو الراوي</span>
+      </span>
+      <span className="ms-auto hidden font-display text-xl opacity-70 group-hover:opacity-100 sm:block">افتح الغرفة ←</span>
+    </button>
   );
 }

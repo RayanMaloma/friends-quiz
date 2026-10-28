@@ -6,7 +6,7 @@ import { AdminGate, AdminShell, type AdminWarning } from "@/components/admin/Adm
 export const metadata: Metadata = { title: "لوحة التحكم — ألعاب الشلّة" };
 
 /** Must match fq_schema_version() in the latest migration. */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 async function schemaVersion(): Promise<number> {
   try {
