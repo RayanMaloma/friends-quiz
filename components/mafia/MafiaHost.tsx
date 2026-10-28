@@ -32,7 +32,7 @@ import {
   useDeadlineRefresh,
   useServerNow,
 } from "./parts";
-import { DAWN_REVEAL_MS, INTRO, ROLE_REVEAL_DELAY_MS, VERDICT_REVEAL_MS } from "./timing";
+import { DAWN_REVEAL_MS, INTRO, VERDICT_REVEAL_MS } from "./timing";
 import { IntroSequence } from "./Intro";
 
 type Send = (action: string, extra?: Record<string, unknown>) => Promise<string | null>;
@@ -66,7 +66,7 @@ export function MafiaHost({ creds }: { creds: HostCreds }) {
   if (!view) return <Plain><span className="mf-loader" aria-label="جاري التحميل" /></Plain>;
 
   return (
-    <MafiaAudioProvider>
+    <MafiaAudioProvider session={{ sessionId, hostToken }}>
       <Tv view={view} receivedAt={receivedAt} send={send} connected={connected} />
     </MafiaAudioProvider>
   );
@@ -116,11 +116,27 @@ const NIGHT_PHASE = new Set(["nightfall", "mafia", "detective", "doctor"]);
 const nameOf = (m: MafiaPublicMatch, id: string | null) => m.players.find((p) => p.id === id)?.name ?? "";
 
 /**
- * Plays the sound and narration of each phase as it starts. Keyed on the
- * phase's start time, so a reload mid-phase doesn't replay old lines.
- * Returns the current subtitle.
+ * Lines already spoken on this TV, kept across reloads (sessionStorage), so
+ * a refresh or a reconnect never says a line twice.
  */
-function useDirector(m: MafiaPublicMatch | null, now: number): Cue | null {
+const SPOKEN_KEY = "fq:mafia:spoken";
+function markSpoken(id: string): boolean {
+  try {
+    const list: string[] = JSON.parse(window.sessionStorage.getItem(SPOKEN_KEY) ?? "[]");
+    if (list.includes(id)) return false;
+    window.sessionStorage.setItem(SPOKEN_KEY, JSON.stringify([...list.slice(-60), id]));
+  } catch {
+    // Storage blocked: the in-memory guard below still stops repeats.
+  }
+  return true;
+}
+
+/**
+ * Plays the sound and narration of each phase as it starts, driven by the
+ * server's phase changes. Keyed on the phase's start time, so a reload
+ * mid-phase doesn't replay old lines. Returns the current subtitle.
+ */
+function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number): Cue | null {
   const { sound, narrator, unlocked } = useMafiaAudio();
   const [subtitle, setSubtitle] = useState<Cue | null>(null);
   const played = useRef<string | null>(null);
@@ -159,14 +175,17 @@ function useDirector(m: MafiaPublicMatch | null, now: number): Cue | null {
     const late = ageRef.current > 4000;
     const say = (c: Cue) => {
       setSubtitle(c);
-      void narrator.speak(c);
+      if (markSpoken(`${sessionId}|${key}|${c.key}`)) void narrator.speak(c);
     };
     const at = (ms: number, fn: () => void) => {
       const wait = ms - ageRef.current;
       if (wait < -1500) return;
       timers.current.push(setTimeout(fn, Math.max(0, wait)));
     };
-    const line = (k: CueKey, name?: string | null, role?: Role | null) => cue(k, name, role);
+    const line = (k: CueKey, name?: string | null) => cue(k, name);
+    // The named lines of this phase are known now: load them while the suspense plays.
+    if (s.phase === "dawn" && s.dawn?.victimId) narrator.prefetch([line(s.dawn.outcome === "saved" ? "dawn_saved" : "dawn_killed", nameOf(s, s.dawn.victimId))]);
+    if (s.phase === "verdict" && s.verdict?.targetId) narrator.prefetch([line("verdict_eliminated", nameOf(s, s.verdict.targetId))]);
 
     if (!late) {
       switch (s.phase) {
@@ -221,7 +240,7 @@ function useDirector(m: MafiaPublicMatch | null, now: number): Cue | null {
       at(DAWN_REVEAL_MS, () => {
         if (d.outcome === "killed") {
           sound.play("sting");
-          say(line("dawn_killed", nameOf(s, d.victimId), d.role));
+          say(line("dawn_killed", nameOf(s, d.victimId)));
         } else if (d.outcome === "saved") {
           sound.play("saved");
           say(line("dawn_saved", nameOf(s, d.victimId)));
@@ -244,7 +263,7 @@ function useDirector(m: MafiaPublicMatch | null, now: number): Cue | null {
         }
       });
     }
-  }, [key, narrator, sound]);
+  }, [key, narrator, sound, sessionId]);
 
   useEffect(() => () => {
     for (const t of timers.current) clearTimeout(t);
@@ -276,7 +295,7 @@ function useDirector(m: MafiaPublicMatch | null, now: number): Cue | null {
 function Tv({ view, receivedAt, send, connected }: { view: MafiaHostView; receivedAt: number; send: Send; connected: boolean }) {
   const now = useServerNow(view.serverNow, receivedAt);
   const m = view.match;
-  const subtitle = useDirector(m, now);
+  const subtitle = useDirector(view.sessionId, m, now);
   const audio = useMafiaAudio();
   const [error, setError] = useState<string | null>(null);
 
@@ -414,12 +433,18 @@ function SoundPanel({ onClose }: { onClose: () => void }) {
       <div className="mf-field">
         <span>الراوي</span>
         <p className={`mf-source is-${source.kind}`}>{source.label}</p>
-        {source.kind === "recorded" && <p className="mf-hint">الجمل اللي ما لها تسجيل: {tts.label}</p>}
+        {source.kind === "recorded" && <p className="mf-hint">الجمل اللي فيها أسماء: {narrator.hasServerVoice ? "خدمة الصوت" : tts.label}</p>}
+        {!source.najdi && (
+          <p className="mf-hint">
+            لصوت راوي نجدي: سجّل الجمل في public/mafia/voice، أو فعّل خدمة صوت (MAFIA_TTS_PROVIDER) على السيرفر.
+          </p>
+        )}
+        {narrator.lastError && <p className="mf-hint">{narrator.lastError}</p>}
       </div>
       <label className="mf-field">
         <span>صوت النظام (للجمل بدون تسجيل)</span>
         <select value={settings.voice} onChange={(e) => update({ voice: e.target.value })}>
-          <option value="auto">تلقائي — صوت سعودي رجّالي فقط</option>
+          <option value="auto">تلقائي — سعودي رجّالي إذا موجود، وإلا أي صوت عربي</option>
           <option value="off">بدون صوت (نص فقط)</option>
           {voices.map((v) => (
             <option key={v.uri} value={v.uri}>
@@ -649,7 +674,6 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
     case "dawn": {
       const d = m.dawn;
       const revealed = t >= DAWN_REVEAL_MS;
-      const roleShown = t >= DAWN_REVEAL_MS + ROLE_REVEAL_DELAY_MS;
       if (!revealed || !d) {
         return (
           <div className="mf-scene-text mf-dawn">
@@ -665,8 +689,8 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
           <div className="mf-scene-text mf-announce is-killed">
             <p className="mf-eyebrow mf-fade">ضحية الليلة</p>
             <h1 className="mf-victim mf-fade-slow">{victim}</h1>
-            <p className="mf-lede mf-fade" style={{ animationDelay: "500ms" }}>ما شاف الصبح.</p>
-            <div className={`mf-role-reveal ${roleShown ? "is-on" : ""}`}>{d.role && <RoleReveal role={d.role} />}</div>
+            {/* Same for every role: what they were stays secret until the end. */}
+            <p className="mf-lede mf-fade" style={{ animationDelay: "500ms" }}>تم قتله… ودوره يبقى سرّ لين النهاية.</p>
           </div>
         );
       }
@@ -737,7 +761,7 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
             <>
               <p className="mf-eyebrow mf-fade">المدينة طردت</p>
               <h1 className="mf-victim mf-fade-slow">{nameOf(m, v.targetId)}</h1>
-              <p className="mf-lede mf-fade" style={{ animationDelay: "900ms" }}>طلع من اللعبة… ودوره يبقى سرّ لين النهاية.</p>
+              <p className="mf-lede mf-fade" style={{ animationDelay: "900ms" }}>تم استبعاده… ودوره يبقى سرّ لين النهاية.</p>
             </>
           ) : (
             <>
@@ -762,17 +786,6 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
     case "gameOver":
       return <Finale m={m} run={run} />;
   }
-}
-
-function RoleReveal({ role }: { role: Role }) {
-  return (
-    <div className="mf-role-stamp" data-role={role}>
-      <Emblem role={role} />
-      <span>
-        كان <b>{ROLE_INFO[role].article}</b>
-      </span>
-    </div>
-  );
 }
 
 function outLabel(p: MafiaPublicPlayer): string {
@@ -830,8 +843,8 @@ function PlayerStrip({ m }: { m: MafiaPublicMatch }) {
   return (
     <footer className="mf-strip" aria-label="اللاعبين">
       {m.players.map((p) => (
-        <span key={p.id} className={`mf-strip-item ${p.alive ? "" : "is-out"}`} data-role={p.role ?? undefined}>
-          {!p.alive && p.role && <Emblem role={p.role} />}
+        // Out players look the same whatever their role (it isn't sent anyway).
+        <span key={p.id} className={`mf-strip-item ${p.alive ? "" : "is-out"}`}>
           <span className="mf-strip-name">{p.name}</span>
         </span>
       ))}

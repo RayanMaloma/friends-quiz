@@ -7,7 +7,7 @@ import {
   resolveNight,
   type Rng,
 } from "@/lib/mafia/engine";
-import { roleCounts, SECONDS, SETTLE_MS, type Role } from "@/lib/mafia/rules";
+import { IDLE_NIGHT_SECONDS, roleCounts, SECONDS, SETTLE_MS, type Role } from "@/lib/mafia/rules";
 import type { MafiaMatch, Phase, PlayerMove } from "@/lib/mafia/types";
 import { buildMafiaGuestView, buildMafiaHostView } from "@/lib/mafia/views";
 import { cue } from "@/lib/mafia/narration";
@@ -231,17 +231,28 @@ describe("night", () => {
     expect(resolveNight(d, first).dawn!.outcome).toBe("saved");
   });
 
-  it("skips the phases of roles that are out, and the doctor when nobody is left to protect", () => {
+  it("still runs the phase of a role that is out (or a doctor with nobody to protect), for a plausible time", () => {
     let m = table(SIX, "verdict");
     m = { ...m, players: m.players.map((p) => (p.id === "p2" ? { ...p, alive: false } : p)) };
     m = pass(m); // → nightfall
     m = pass(m); // → mafia
     expect(m.phase).toBe("mafia");
-    m = pass(m);
-    expect(m.phase).toBe("doctor"); // detective is out
+    for (const rng of [first, last]) {
+      const d = pass(m, rng);
+      expect(d.phase).toBe("detective"); // the detective is out, but nobody can tell
+      const secs = (d.deadline! - d.phaseStartedAt) / 1000;
+      expect(secs).toBeGreaterThanOrEqual(IDLE_NIGHT_SECONDS[0]);
+      expect(secs).toBeLessThanOrEqual(IDLE_NIGHT_SECONDS[1]);
+      // Nothing closes it early, and it moves on at its deadline.
+      expect(advance(d, d.deadline! - 1).phase).toBe("detective");
+      expect(pass(d).phase).toBe("doctor");
+    }
 
     let n = table(["mafia", "detective", "doctor", "citizen"], "detective");
     n = { ...n, doctorHistory: ["p1", "p2", "p3", "p4"] };
+    n = pass(n);
+    expect(n.phase).toBe("doctor");
+    expect(buildMafiaGuestView(snapshotOf(n), n, "p3")!.secret!.task!.targets).toEqual([]);
     n = pass(n);
     expect(n.phase).toBe("dawn");
   });
@@ -434,13 +445,54 @@ describe("views never leak secrets", () => {
     expect(buildMafiaGuestView(snapshotOf(v), v, "p1")!.secret!.role).toBe("mafia");
   });
 
-  it("reveals a role once its player is killed at night, and every role at the end", () => {
+  // SEVEN: p1, p2 mafia; p3 detective; p4 doctor.
+  for (const [victim, role] of [["p3", "detective"], ["p4", "doctor"], ["p5", "citizen"]] as const) {
+    it(`never reveals the role of a ${role} killed at night (until the end)`, () => {
+      let n = table(SEVEN, "mafia");
+      n = move(n, "p1", night(n, "mafia", victim));
+      n = move(n, "p2", night(n, "mafia", victim));
+      n = pass(n); // detective
+      n = pass(n); // doctor
+      n = pass(n); // dawn
+      expect(n.phase).toBe("dawn");
+      expect(n.dawn).toEqual({ outcome: "killed", victimId: victim, role }); // the engine still knows
+      for (const view of [buildMafiaHostView(snapshotOf(n), n), buildMafiaGuestView(snapshotOf(n), n, "p6")!]) {
+        expect(view.match!.dawn).toEqual({ outcome: "killed", victimId: victim, role: null });
+        expect(view.match!.players.every((p) => p.role === null)).toBe(true);
+        expect(JSON.stringify(view.match)).not.toMatch(/"role":"(mafia|detective|doctor|citizen)"/);
+      }
+      expect(cue("dawn_killed", "فهد").text).not.toMatch(/قاتل|مواطن|الطبيب|الشايب/);
+    });
+  }
+
+  it("never reveals the role of a mafia member who is out, and keeps the victory count right", () => {
+    // p1 (mafia) voted out on day 1, p2 (mafia) still in: the game goes on.
+    let v = table(SEVEN, "voting");
+    for (const id of ["p2", "p3", "p4", "p5", "p6", "p7"]) v = move(v, id, { type: "vote", round: 1, choice: "p1" });
+    v = pass(v);
+    expect(v.winner).toBeNull();
+    const tv = buildMafiaHostView(snapshotOf(v), v);
+    expect(JSON.stringify(tv)).not.toMatch(/"role":"(mafia|detective|doctor|citizen)"/);
+    // p2 voted out next: no mafia left, the city wins, and only now every role shows.
+    v = { ...v, phase: "voting", votes: {} };
+    for (const id of ["p3", "p4", "p5", "p6", "p7"]) v = move(v, id, { type: "vote", round: 1, choice: "p2" });
+    v = pass(v);
+    expect(v.winner?.team).toBe("citizens");
+    expect(buildMafiaHostView(snapshotOf(v), v).match!.verdict!.role).toBeNull();
+    v = pass(v);
+    expect(v.phase).toBe("gameOver");
+    const end = buildMafiaHostView(snapshotOf(v), v).match!;
+    expect(end.players.map((p) => p.role)).toEqual(SEVEN);
+    expect(end.verdict!.role).toBe("mafia");
+    expect(end.winner?.team).toBe("citizens");
+  });
+
+  it("reveals every role at the end only", () => {
     const out = { ...m, players: m.players.map((p) => (p.id === "p5" ? { ...p, alive: false, out: { round: 1, by: "night" as const } } : p)) };
     const tv = buildMafiaHostView(snapshotOf(out), out);
-    expect(tv.match!.players.find((p) => p.id === "p5")!.role).toBe("citizen");
-    expect(tv.match!.players.find((p) => p.id === "p1")!.role).toBeNull();
-    const over = { ...m, phase: "gameOver" as const };
-    expect(buildMafiaHostView(snapshotOf(over), over).match!.players.every((p) => p.role !== null)).toBe(true);
+    expect(tv.match!.players.every((p) => p.role === null)).toBe(true);
+    const over = { ...out, phase: "gameOver" as const };
+    expect(buildMafiaHostView(snapshotOf(over), over).match!.players.map((p) => p.role)).toEqual(SEVEN);
   });
 
   it("voting progress is a count, never who voted for whom", () => {
@@ -456,9 +508,19 @@ describe("views never leak secrets", () => {
 });
 
 describe("narration", () => {
-  it("names the victim and the role where the moment calls for it", () => {
-    expect(cue("dawn_killed", "فهد", "doctor").text).toContain("فهد");
-    expect(cue("dawn_killed", "فهد", "doctor").text).toContain("الطبيب");
-    expect(cue("mafia").text).toBe("القتلة... جاء دوركم.");
+  it("names the player where the moment calls for it, never a role", () => {
+    expect(cue("dawn_killed", "فهد").text).toBe("القتلة اختاروا فهد... وللأسف، انتهت لعبته.");
+    expect(cue("dawn_saved", "فهد").text).toBe("القتلة حاولوا يتخلصون من فهد... لكن المحاولة فشلت.");
+    expect(cue("verdict_eliminated", "خالد").text).toBe("تم استبعاد خالد من اللعبة.");
+    expect(cue("dawn_quiet").text).toBe("عدّت الليلة على خير... وما فقدنا أحد.");
+    expect(cue("mafia").text).toBe("الحين دور القتلة... الباقين يغمّضون عيونهم.");
+    expect(cue("detective").text).toBe("الحين دور الشايب... الباقين يغمّضون عيونهم.");
+    expect(cue("doctor").text).toBe("الحين دور الطبيب... الباقين يغمّضون عيونهم.");
+    expect(cue("night").text).toBe("حلّ الليل... والكل يغمّض عيونه.");
+    expect(cue("dawn").text).toBe("طلع الصبح... افتحوا عيونكم.");
+    expect(cue("discussion").text).toBe("الحين عندكم دقيقة ونص تتناقشون... حاولوا تعرفون مين القاتل.");
+    expect(cue("voting").text).toBe("انتهى وقت النقاش... الحين وقت التصويت.");
+    // A name on a line that has none is ignored.
+    expect(cue("mafia", "فهد").text).not.toContain("فهد");
   });
 });

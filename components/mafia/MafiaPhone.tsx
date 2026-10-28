@@ -283,6 +283,9 @@ function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: 
           <RoleChip role={result.role} />
           <p className="mf-hint">النتيجة لك وحدك. احفظها… وتصرّف بحكمة.</p>
         </div>
+      ) : task.targets.length === 0 ? (
+        // The doctor has protected everyone left: the phase still runs, so nobody can tell.
+        <p className="mf-hint">ما فيه أحد تقدر تحميه الليلة… انتظر الصبح.</p>
       ) : (
         <ul className="mf-targets">
           {task.targets.map((t) => {

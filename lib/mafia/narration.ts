@@ -1,13 +1,11 @@
 /**
- * The narrator's script, in Saudi Arabic.
+ * The narrator's script, in Saudi Arabic (Najdi).
  *
  * Every line has a key. A recorded file for a key (see public/mafia/voice)
  * is played as-is, so recorded lines never contain names; `text` is what a
  * Saudi text-to-speech voice reads and what the TV shows as a subtitle, and
  * may include the player's name.
  */
-import { ROLE_INFO, type Role } from "./rules";
-
 export type CueKey =
   | "intro"
   | "roles"
@@ -31,24 +29,27 @@ export type CueKey =
   | "paused"
   | "resumed";
 
-/** The recorded (name-free) wording of every line. Also the subtitle when there is no name. */
+/**
+ * The recorded (name-free) wording of every line, in Najdi. Also the subtitle
+ * when there is no name. No line ever says what a player who is out was.
+ */
 export const SCRIPT: Record<CueKey, string> = {
   // Spoken 3–7s into the opening sequence: kept short enough to end before the countdown.
   intro: "الليلة... بينكم قتلة. ومحد يدري مين يثق بمين.",
   roles: "كل واحد يشوف دوره في جواله... اضغط مطوّل على البطاقة، وخلك ساكت.",
-  night_first: "حلّ الليل... وكل واحد يخفي أسراره.",
-  night: "رجع الليل... المدينة نايمة، بس فيه ناس صاحين.",
-  mafia: "القتلة... جاء دوركم.",
-  detective: "الشايب... حان وقت التحقيق.",
-  doctor: "الطبيب... اختر الشخص اللي تبي تحميه.",
-  dawn: "طلع الفجر... وخلونا نشوف وش صار الليلة.",
-  dawn_killed: "للأسف... فيه واحد منكم ما شاف الصبح.",
-  dawn_saved: "القتلة حاولوا الليلة... بس الطبيب كان أسرع منهم.",
-  dawn_quiet: "ليلة هادية... محد مات الليلة.",
-  discussion: "قدامكم دقيقة ونص... ناقشوا وشكّوا في بعض.",
-  voting: "انتهى وقت الكلام... الحين وقت التصويت.",
-  verdict: "خلونا نشوف وش قررت المدينة...",
-  verdict_eliminated: "المدينة قالت كلمتها... وفيه واحد طلع من اللعبة. وش كان دوره؟ يبقى سرّ.",
+  night_first: "حلّ الليل... والكل يغمّض عيونه.",
+  night: "حلّ الليل... والكل يغمّض عيونه.",
+  mafia: "الحين دور القتلة... الباقين يغمّضون عيونهم.",
+  detective: "الحين دور الشايب... الباقين يغمّضون عيونهم.",
+  doctor: "الحين دور الطبيب... الباقين يغمّضون عيونهم.",
+  dawn: "طلع الصبح... افتحوا عيونكم.",
+  dawn_killed: "القتلة اختاروا ضحيتهم... وللأسف، انتهت لعبته.",
+  dawn_saved: "القتلة حاولوا يتخلصون من واحد منكم... لكن المحاولة فشلت.",
+  dawn_quiet: "عدّت الليلة على خير... وما فقدنا أحد.",
+  discussion: "الحين عندكم دقيقة ونص تتناقشون... حاولوا تعرفون مين القاتل.",
+  voting: "انتهى وقت النقاش... الحين وقت التصويت.",
+  verdict: "خلونا نشوف وش قررتوا...",
+  verdict_eliminated: "تم استبعاد لاعب من اللعبة.",
   verdict_skip: "قررتوا تتخطون التصويت... محد طلع اليوم.",
   verdict_tie: "الأصوات تعادلت... محد يطلع اليوم.",
   win_mafia: "انتهت اللعبة... المافيا سيطرت على المدينة.",
@@ -61,21 +62,23 @@ export interface Cue {
   key: CueKey;
   /** What is read aloud by text-to-speech and shown as the subtitle. */
   text: string;
+  /** The player named in the line, if any. */
+  name?: string;
 }
 
-const roleLabel = (role: Role | null) => (role ? ROLE_INFO[role].article : "");
+/** The lines that can carry a player's name. */
+export const NAMED_CUES: CueKey[] = ["dawn_killed", "dawn_saved", "verdict_eliminated"];
 
-/** A line, personalised with a name (and role) where the moment calls for it. */
-export function cue(key: CueKey, name?: string | null, role?: Role | null): Cue {
+/** A line, personalised with a player's name where the moment calls for it. Never with a role. */
+export function cue(key: CueKey, name?: string | null): Cue {
   if (name) {
     switch (key) {
       case "dawn_killed":
-        return { key, text: `للأسف... ${name} ما شاف الصبح. كان ${roleLabel(role ?? null)}.` };
+        return { key, name, text: `القتلة اختاروا ${name}... وللأسف، انتهت لعبته.` };
       case "dawn_saved":
-        return { key, text: `القتلة حاولوا يقتلون ${name}... بس الطبيب كان أسرع منهم.` };
+        return { key, name, text: `القتلة حاولوا يتخلصون من ${name}... لكن المحاولة فشلت.` };
       case "verdict_eliminated":
-        // A vote-out never reveals the role.
-        return { key, text: `المدينة قالت كلمتها... ${name} طلع من اللعبة. وش كان دوره؟ يبقى سرّ.` };
+        return { key, name, text: `تم استبعاد ${name} من اللعبة.` };
     }
   }
   return { key, text: SCRIPT[key] };

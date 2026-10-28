@@ -46,6 +46,12 @@ export const SECONDS = {
  */
 export const SETTLE_MS = 5000;
 
+/**
+ * A night phase whose role is out still runs, for a random [min, max]
+ * seconds: about as long as a real choice plus the settle.
+ */
+export const IDLE_NIGHT_SECONDS = [12, 24] as const;
+
 /** `article`: the form used after «كان» (كان قاتل، كان الشايب، كان مواطن). */
 export const ROLE_INFO: Record<Role, { name: string; article: string; team: string; tagline: string; goal: string }> = {
   mafia: {

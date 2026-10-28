@@ -10,7 +10,7 @@
  *   resolved once, so a detective or doctor killed that night still acted,
  *   and victory is only checked after the doctor's protection.
  */
-import { MAX_PLAYERS, MIN_PLAYERS, roleCounts, SECONDS, SETTLE_MS, type Role } from "./rules";
+import { IDLE_NIGHT_SECONDS, MAX_PLAYERS, MIN_PLAYERS, roleCounts, SECONDS, SETTLE_MS, type Role } from "./rules";
 import {
   NIGHT_PHASES,
   type EngineResult,
@@ -109,8 +109,8 @@ export function nightTargets(m: MafiaMatch, phase: NightPhase, actorId: string):
   }
 }
 
-/** A night phase runs only if its role is alive and has someone to act on. */
-function nightPhaseRuns(m: MafiaMatch, phase: NightPhase): boolean {
+/** Whether a night phase has a living actor with someone to act on. */
+function nightPhaseActive(m: MafiaMatch, phase: NightPhase): boolean {
   const actors = nightActors(m, phase);
   return actors.length > 0 && nightTargets(m, phase, actors[0].id).length > 0;
 }
@@ -168,12 +168,20 @@ function enter(m: MafiaMatch, phase: Phase, now: number): MafiaMatch {
   return { ...next, deadline: secs === null ? null : now + secs * 1000 };
 }
 
+/**
+ * Every night phase runs every night, even when its role is out (or the
+ * doctor has nobody left to protect): skipping it would tell the room that
+ * the detective or the doctor is dead. Such a phase just waits for a
+ * plausible, random time, like a real player thinking and settling.
+ */
 function nextNightPhase(m: MafiaMatch, after: NightPhase | null, now: number, rng: Rng): MafiaMatch {
   const start = after === null ? 0 : NIGHT_PHASES.indexOf(after) + 1;
-  for (const phase of NIGHT_PHASES.slice(start)) {
-    if (nightPhaseRuns(m, phase)) return enter(m, phase, now);
-  }
-  return enter(resolveNight(m, rng), "dawn", now);
+  const phase = NIGHT_PHASES[start];
+  if (!phase) return enter(resolveNight(m, rng), "dawn", now);
+  const next = enter(m, phase, now);
+  if (nightPhaseActive(m, phase)) return next;
+  const [lo, hi] = IDLE_NIGHT_SECONDS;
+  return { ...next, deadline: now + (lo + Math.floor(rng() * (hi - lo + 1))) * 1000 };
 }
 
 /** Whether the current phase may close before its deadline. */

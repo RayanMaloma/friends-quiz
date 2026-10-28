@@ -45,7 +45,7 @@ export interface DawnResult {
   outcome: "killed" | "saved" | "quiet";
   /** The victim (killed) or the intended victim (saved). */
   victimId: string | null;
-  /** Revealed role of a killed player. */
+  /** Role of a killed player: kept for the engine, public only once the game is over. */
   role: Role | null;
 }
 

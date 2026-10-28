@@ -1,11 +1,10 @@
 /**
  * What each device may see of a Mafia room.
  *
- * - The TV (and the public part of every phone) never gets a living
- *   player's role, the mafia's picks, the detective's or doctor's choice, or
- *   who voted for whom. A role becomes public when its player is killed at
- *   night. A player voted out keeps their role secret; every role is shown
- *   at the end.
+ * - The TV (and the public part of every phone) never gets anyone's role
+ *   while the match runs — not even of a player who is out, killed at night
+ *   or voted out — nor the mafia's picks, the detective's or doctor's choice,
+ *   or who voted for whom. Every role is shown at the end only.
  * - A phone gets, on top of that, only its own secrets: its role, its mafia
  *   teammates (and their picks during the mafia phase), its own
  *   investigations, its own protections and its own vote.
@@ -38,7 +37,7 @@ export interface MafiaPublicPlayer {
   id: string;
   name: string;
   alive: boolean;
-  /** Only for players killed at night, and for everyone once the game is over (never for a vote-out before the end). */
+  /** Only once the game is over (never for a player who is out before the end). */
   role: Role | null;
   out: { round: number; by: "night" | "vote" } | null;
 }
@@ -131,13 +130,13 @@ export function publicMatch(m: MafiaMatch): MafiaPublicMatch {
       id: p.id,
       name: p.name,
       alive: p.alive,
-      role: over || (!p.alive && p.out?.by === "night") ? p.role : null,
+      role: over ? p.role : null,
       out: p.out,
     })),
     counts: roleCounts(m.players.length)!,
     seenIds: m.phase === "intro" || m.phase === "roleReveal" ? m.roleSeen : [],
-    dawn: m.dawn,
-    // The verdict names who left, not what they were.
+    // Dawn and verdict name who left, never what they were (until the end).
+    dawn: m.dawn && !over ? { ...m.dawn, role: null } : m.dawn,
     verdict: m.verdict && !over ? { ...m.verdict, role: null } : m.verdict,
     votedCount: m.phase === "voting" ? living.filter((p) => p.id in m.votes).length : 0,
     voterCount: living.length,

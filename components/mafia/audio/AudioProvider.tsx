@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { MafiaSound } from "./sound";
-import { Narrator, type NarratorSource, type VoiceChoice } from "./narrator";
+import { Narrator, STATIC_LINES, type NarratorSource, type VoiceChoice, type VoiceSession } from "./narrator";
 
 const KEY = "fq:mafia:audio";
 
@@ -45,7 +45,7 @@ interface AudioApi {
 const Ctx = createContext<AudioApi | null>(null);
 
 /** TV only: one sound engine + narrator for the whole room screen. */
-export function MafiaAudioProvider({ children }: { children: React.ReactNode }) {
+export function MafiaAudioProvider({ session, children }: { session: VoiceSession; children: React.ReactNode }) {
   const [speaking, setSpeaking] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
@@ -62,18 +62,21 @@ export function MafiaAudioProvider({ children }: { children: React.ReactNode }) 
   // Re-render when the narrator learns about voices / recordings.
   const version = useSyncExternalStore(
     useCallback((fn: () => void) => narrator.subscribe(fn), [narrator]),
-    () => narrator.recordedCount + narrator.arabicVoices().length * 1000 + (narrator.ttsSource().kind === "tts" ? 1e6 : 0),
-    () => 0,
+    () => `${narrator.recordedCount}|${narrator.hasServerVoice}|${narrator.arabicVoices().length}|${narrator.ttsSource().label}|${narrator.lastError}`,
+    () => "",
   );
 
   useEffect(() => {
     const s = readSettings();
     void Promise.resolve().then(() => setSettings(s));
-    void narrator.init();
+    // Then load every name-free line ahead, so the first ones start on time.
+    void narrator.init(session).then(() => narrator.prefetch(STATIC_LINES));
     return () => {
       narrator.stop();
       sound.dispose();
     };
+    // The session never changes for a mounted TV.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrator, sound]);
 
   useEffect(() => {
@@ -85,9 +88,11 @@ export function MafiaAudioProvider({ children }: { children: React.ReactNode }) 
 
   // The first click or key press anywhere unlocks audio (autoplay rules).
   const unlock = useCallback(async () => {
+    // Synchronously, while the click is still "the user's gesture".
+    narrator.unlock();
     const ok = await sound.unlock();
     setUnlocked(ok);
-  }, [sound]);
+  }, [sound, narrator]);
   useEffect(() => {
     const on = () => void unlock();
     window.addEventListener("pointerdown", on);
