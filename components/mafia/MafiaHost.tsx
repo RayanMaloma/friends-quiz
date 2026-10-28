@@ -120,6 +120,8 @@ const nameOf = (m: MafiaPublicMatch, id: string | null) => m.players.find((p) =>
  * a refresh or a reconnect never says a line twice.
  */
 const SPOKEN_KEY = "fq:mafia:spoken";
+/** How long a new line may wait for the previous one to end. */
+const LINE_WAIT_MS = 4000;
 function markSpoken(id: string): boolean {
   try {
     const list: string[] = JSON.parse(window.sessionStorage.getItem(SPOKEN_KEY) ?? "[]");
@@ -175,7 +177,8 @@ function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number)
     const late = ageRef.current > 4000;
     const say = (c: Cue) => {
       setSubtitle(c);
-      if (markSpoken(`${sessionId}|${key}|${c.key}`)) void narrator.speak(c);
+      // Let a recording that is still playing finish (briefly) rather than cut it off.
+      if (markSpoken(`${sessionId}|${key}|${c.key}`)) void narrator.speak(c, { waitMs: LINE_WAIT_MS });
     };
     const at = (ms: number, fn: () => void) => {
       const wait = ms - ageRef.current;

@@ -54,6 +54,11 @@ export class Narrator {
   /** Bumped by every speak/stop: a line still loading when this changes is dropped. */
   private seq = 0;
   private primed = false;
+  /** A line is playing now, and who waits for it to end. */
+  private busy = false;
+  private idle: (() => void)[] = [];
+  /** Bumped by every speak request: a line still waiting its turn is dropped when a newer one arrives. */
+  private requests = 0;
   private listeners = new Set<() => void>();
   private onSpeaking: (on: boolean) => void;
   /** Why the last line was silent, for the settings panel. */
@@ -61,6 +66,12 @@ export class Narrator {
 
   constructor(onSpeaking: (on: boolean) => void) {
     this.onSpeaking = onSpeaking;
+  }
+
+  private setSpeaking(on: boolean) {
+    this.busy = on;
+    if (!on) for (const fn of this.idle.splice(0)) fn();
+    this.onSpeaking(on);
   }
 
   /** Loads the recorded-lines manifest, the server voice and the system voices. */
@@ -227,11 +238,23 @@ export class Narrator {
     this.seq++;
     if (this.player && !this.player.paused) this.player.pause();
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-    this.onSpeaking(false);
+    this.setSpeaking(false);
   }
 
-  /** Speaks a line. Resolves when it ends (or right away if there is no voice). */
-  async speak(line: Cue): Promise<void> {
+  /**
+   * Speaks a line. Resolves when it ends (or right away if there is no voice).
+   * With `waitMs`, a line that is still playing may finish first (for at most
+   * that long) instead of being cut off; lines still never overlap.
+   */
+  async speak(line: Cue, { waitMs = 0 }: { waitMs?: number } = {}): Promise<void> {
+    const request = ++this.requests;
+    if (waitMs > 0 && this.busy) {
+      await new Promise<void>((resolve) => {
+        this.idle.push(resolve);
+        setTimeout(resolve, waitMs);
+      });
+      if (request !== this.requests) return; // a newer line took its turn
+    }
     this.stop();
     const seq = this.seq;
     if (this.muted) return;
@@ -255,14 +278,14 @@ export class Narrator {
     return new Promise((resolve) => {
       const done = () => {
         el.onended = el.onerror = null;
-        if (seq === this.seq) this.onSpeaking(false);
+        if (seq === this.seq) this.setSpeaking(false);
         resolve();
       };
       el.onended = done;
       el.onerror = done;
       el.src = url;
       el.volume = this.volume;
-      this.onSpeaking(true);
+      this.setSpeaking(true);
       el.play().then(
         () => {
           this.lastError = null;
@@ -291,12 +314,12 @@ export class Narrator {
       const done = () => {
         if (finished) return;
         finished = true;
-        if (seq === this.seq) this.onSpeaking(false);
+        if (seq === this.seq) this.setSpeaking(false);
         resolve();
       };
       u.onend = done;
       u.onerror = done;
-      this.onSpeaking(true);
+      this.setSpeaking(true);
       window.speechSynthesis.speak(u);
       // Some engines never fire onend: don't keep the ambience ducked forever.
       setTimeout(done, 15000);
