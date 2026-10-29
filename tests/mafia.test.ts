@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   advance,
+  announced,
   applyHostMove,
   applyPlayerMove,
   createMatch,
   resolveNight,
   type Rng,
 } from "@/lib/mafia/engine";
-import { IDLE_NIGHT_SECONDS, roleCounts, SECONDS, SETTLE_MS, type Role } from "@/lib/mafia/rules";
-import type { MafiaMatch, Phase, PlayerMove } from "@/lib/mafia/types";
+import { DAWN_REVEAL_MS, IDLE_NIGHT_SECONDS, roleCounts, SECONDS, SETTLE_MS, VERDICT_REVEAL_MS, type Role } from "@/lib/mafia/rules";
+import { SKIP, type MafiaMatch, type Phase, type PlayerMove } from "@/lib/mafia/types";
 import { buildMafiaGuestView, buildMafiaHostView } from "@/lib/mafia/views";
 import { cue } from "@/lib/mafia/narration";
 import type { Snapshot } from "@/lib/types";
@@ -150,11 +151,17 @@ describe("night", () => {
     expect(r.players.every((p) => p.alive)).toBe(true);
   });
 
-  it("lets a mafia member change the target until the phase closes", () => {
-    let m = table(SIX);
-    m = move(m, "p1", night(m, "mafia", "p4"));
-    m = move(m, "p1", night(m, "mafia", "p5"));
-    expect(resolveNight(m, first).dawn!.victimId).toBe("p5");
+  it("lets a mafia member change the target while the phase is open, never after", () => {
+    // p1, p2 mafia: p1 changes their mind while p2 is still choosing.
+    const roles: Role[] = ["mafia", "mafia", "detective", "doctor", "citizen", "citizen", "citizen"];
+    let m = table(roles);
+    m = advance(move(m, "p1", night(m, "mafia", "p5")), T0 + 1000);
+    m = advance(move(m, "p1", night(m, "mafia", "p6")), T0 + 1000);
+    expect(m.phase).toBe("mafia");
+    m = advance(move(m, "p2", night(m, "mafia", "p6")), T0 + 1000);
+    expect(m.phase).toBe("detective");
+    expect(applyPlayerMove(m, "p1", night(m, "mafia", "p5"), T0 + 1500).error).toBe("MF_CLOSED");
+    expect(resolveNight(m, first).dawn!.victimId).toBe("p6");
   });
 
   it("checks who may act, on whom, and when", () => {
@@ -231,7 +238,7 @@ describe("night", () => {
     expect(resolveNight(d, first).dawn!.outcome).toBe("saved");
   });
 
-  it("still runs the phase of a role that is out (or a doctor with nobody to protect), for a plausible time", () => {
+  it("still runs the phase of a role that is out (or a doctor with nobody to protect), for 6 seconds", () => {
     let m = table(SIX, "verdict");
     m = { ...m, players: m.players.map((p) => (p.id === "p2" ? { ...p, alive: false } : p)) };
     m = pass(m); // → nightfall
@@ -240,9 +247,8 @@ describe("night", () => {
     for (const rng of [first, last]) {
       const d = pass(m, rng);
       expect(d.phase).toBe("detective"); // the detective is out, but nobody can tell
-      const secs = (d.deadline! - d.phaseStartedAt) / 1000;
-      expect(secs).toBeGreaterThanOrEqual(IDLE_NIGHT_SECONDS[0]);
-      expect(secs).toBeLessThanOrEqual(IDLE_NIGHT_SECONDS[1]);
+      expect((d.deadline! - d.phaseStartedAt) / 1000).toBe(IDLE_NIGHT_SECONDS);
+      expect(IDLE_NIGHT_SECONDS).toBe(6);
       // Nothing closes it early, and it moves on at its deadline.
       expect(advance(d, d.deadline! - 1).phase).toBe("detective");
       expect(pass(d).phase).toBe("doctor");
@@ -257,11 +263,10 @@ describe("night", () => {
     expect(n.phase).toBe("dawn");
   });
 
-  it("closes a night phase early once everyone acted and settled, never mid-change", () => {
+  it("closes a night phase the moment its last living actor acts (no waiting for the timer)", () => {
     let m = table(SIX);
     m = move(m, "p1", night(m, "mafia", "p4"), T0 + 3000);
-    expect(advance(m, T0 + 3000 + SETTLE_MS - 1).phase).toBe("mafia");
-    expect(advance(m, T0 + 3000 + SETTLE_MS).phase).toBe("detective");
+    expect(advance(m, T0 + 3000).phase).toBe("detective");
   });
 
   it("checks victory only after the doctor, and announces the dawn before the end", () => {
@@ -363,9 +368,9 @@ describe("host pause", () => {
 /* Secret isolation                                                    */
 /* ------------------------------------------------------------------ */
 
-function snapshotOf(m: MafiaMatch): Snapshot {
+function snapshotOf(m: MafiaMatch, now = T0): Snapshot {
   return {
-    now: new Date(T0).toISOString(),
+    now: new Date(now).toISOString(),
     session: {
       id: "s1",
       code: "1234",
@@ -435,7 +440,8 @@ describe("views never leak secrets", () => {
     v = pass(v); // p1's missing vote counts as skip
     expect(v.verdict).toMatchObject({ outcome: "eliminated", targetId: "p1" });
     expect(v.phase).toBe("verdict");
-    for (const view of [buildMafiaHostView(snapshotOf(v), v), buildMafiaGuestView(snapshotOf(v), v, "p5")!]) {
+    const at = v.phaseStartedAt + VERDICT_REVEAL_MS;
+    for (const view of [buildMafiaHostView(snapshotOf(v, at), v), buildMafiaGuestView(snapshotOf(v, at), v, "p5")!]) {
       expect(view.match!.verdict!.role).toBeNull();
       expect(view.match!.players.find((p) => p.id === "p1")!.role).toBeNull();
       expect(JSON.stringify(view.match)).not.toContain('"role":"mafia"');
@@ -456,7 +462,8 @@ describe("views never leak secrets", () => {
       n = pass(n); // dawn
       expect(n.phase).toBe("dawn");
       expect(n.dawn).toEqual({ outcome: "killed", victimId: victim, role }); // the engine still knows
-      for (const view of [buildMafiaHostView(snapshotOf(n), n), buildMafiaGuestView(snapshotOf(n), n, "p6")!]) {
+      const at = n.phaseStartedAt + DAWN_REVEAL_MS;
+      for (const view of [buildMafiaHostView(snapshotOf(n, at), n), buildMafiaGuestView(snapshotOf(n, at), n, "p6")!]) {
         expect(view.match!.dawn).toEqual({ outcome: "killed", victimId: victim, role: null });
         expect(view.match!.players.every((p) => p.role === null)).toBe(true);
         expect(JSON.stringify(view.match)).not.toMatch(/"role":"(mafia|detective|doctor|citizen)"/);
@@ -478,7 +485,7 @@ describe("views never leak secrets", () => {
     for (const id of ["p3", "p4", "p5", "p6", "p7"]) v = move(v, id, { type: "vote", round: 1, choice: "p2" });
     v = pass(v);
     expect(v.winner?.team).toBe("citizens");
-    expect(buildMafiaHostView(snapshotOf(v), v).match!.verdict!.role).toBeNull();
+    expect(buildMafiaHostView(snapshotOf(v, v.phaseStartedAt + VERDICT_REVEAL_MS), v).match!.verdict!.role).toBeNull();
     v = pass(v);
     expect(v.phase).toBe("gameOver");
     const end = buildMafiaHostView(snapshotOf(v), v).match!;
@@ -522,5 +529,308 @@ describe("narration", () => {
     expect(cue("voting").text).toBe("انتهى وقت النقاش... الحين وقت التصويت.");
     // A name on a line that has none is ignored.
     expect(cue("mafia", "فهد").text).not.toContain("فهد");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Night: auto-advance and skip                                        */
+/* ------------------------------------------------------------------ */
+
+describe("night phases move on as soon as every actor has chosen", () => {
+  // 7 players: p1, p2 mafia; p3 detective; p4 doctor; p5–p7 citizens.
+  const SEVEN: Role[] = ["mafia", "mafia", "detective", "doctor", "citizen", "citizen", "citizen"];
+  const act = (m: MafiaMatch, id: string, phase: "mafia" | "detective" | "doctor", target: string, now = T0 + 1000) =>
+    advance(move(m, id, night(m, phase, target), now), now);
+
+  it("waits for every living mafia member, then moves on at once", () => {
+    let m = table(SEVEN);
+    m = act(m, "p1", "mafia", "p5");
+    expect(m.phase).toBe("mafia"); // one of two
+    m = act(m, "p2", "mafia", "p5");
+    expect(m.phase).toBe("detective");
+    expect(m.phaseStartedAt).toBe(T0 + 1000);
+    expect(m.deadline).toBe(T0 + 1000 + SECONDS.detective * 1000);
+  });
+
+  it("a mafia member who is out is not waited for", () => {
+    let m = table(SEVEN);
+    m = { ...m, players: m.players.map((p) => (p.id === "p2" ? { ...p, alive: false } : p)) };
+    m = act(m, "p1", "mafia", "p5");
+    expect(m.phase).toBe("detective");
+  });
+
+  it("all mafia skip: the phase moves on and nobody dies", () => {
+    let m = table(SEVEN);
+    m = act(m, "p1", "mafia", SKIP);
+    expect(m.phase).toBe("mafia");
+    m = act(m, "p2", "mafia", SKIP);
+    expect(m.phase).toBe("detective");
+    m = pass(pass(m)); // detective, doctor time out
+    expect(m.phase).toBe("dawn");
+    expect(m.dawn).toEqual({ outcome: "quiet", victimId: null, role: null });
+  });
+
+  it("mixed votes and skips: skips count for nobody", () => {
+    let m = table(SEVEN);
+    m = act(m, "p1", "mafia", SKIP);
+    m = act(m, "p2", "mafia", "p6");
+    expect(m.phase).toBe("detective");
+    expect(resolveNight(m, first).dawn).toMatchObject({ outcome: "killed", victimId: "p6" });
+    // A skip can still be changed to a target while the phase is open.
+    let n = table(SEVEN);
+    n = act(n, "p1", "mafia", SKIP);
+    n = act(n, "p1", "mafia", "p7");
+    n = act(n, "p2", "mafia", SKIP);
+    expect(resolveNight(n, first).dawn).toMatchObject({ outcome: "killed", victimId: "p7" });
+  });
+
+  it("detective: the finding is recorded, the phase moves on, and only the detective keeps it", () => {
+    let m = table(SEVEN, "detective");
+    m = act(m, "p3", "detective", "p1");
+    expect(m.phase).toBe("doctor");
+    expect(m.investigations).toEqual([{ round: 1, targetId: "p1", role: "mafia" }]);
+    const snap = snapshotOf(m, T0 + 1000);
+    expect(buildMafiaGuestView(snap, m, "p3")!.secret!.investigations).toEqual([{ round: 1, targetId: "p1", name: "لاعب 1", role: "mafia" }]);
+    // Nobody else sees it: not the TV, not the doctor, not the mafia.
+    for (const view of [buildMafiaHostView(snap, m), buildMafiaGuestView(snap, m, "p4")!, buildMafiaGuestView(snap, m, "p1")!]) {
+      expect(JSON.stringify(view)).not.toContain("investigations\":[{");
+      expect(JSON.stringify(view.match)).not.toMatch(/"role":"(mafia|detective|doctor|citizen)"/);
+    }
+  });
+
+  it("detective skips: no finding, straight to the doctor, and no second try", () => {
+    let m = table(SEVEN, "detective");
+    m = move(m, "p3", night(m, "detective", SKIP));
+    expect(applyPlayerMove(m, "p3", night(m, "detective", "p1"), T0 + 1000).error).toBe("MF_LOCKED");
+    m = advance(m, T0 + 1000);
+    expect(m.phase).toBe("doctor");
+    expect(m.investigations).toEqual([]);
+  });
+
+  it("doctor protects: the night ends at once, and the protection holds", () => {
+    let m = table(SEVEN);
+    m = act(m, "p1", "mafia", "p5");
+    m = act(m, "p2", "mafia", "p5");
+    m = act(m, "p3", "detective", "p6");
+    expect(m.phase).toBe("doctor");
+    m = act(m, "p4", "doctor", "p5");
+    expect(m.phase).toBe("dawn");
+    expect(m.dawn).toEqual({ outcome: "saved", victimId: "p5", role: null });
+    expect(m.doctorHistory).toEqual(["p5"]);
+  });
+
+  it("doctor skips: the night ends at once, nobody is protected and nothing is spent", () => {
+    let m = table(SEVEN);
+    m = act(m, "p1", "mafia", "p5");
+    m = act(m, "p2", "mafia", "p5");
+    m = act(m, "p3", "detective", SKIP);
+    m = act(m, "p4", "doctor", SKIP);
+    expect(m.phase).toBe("dawn");
+    expect(m.dawn).toMatchObject({ outcome: "killed", victimId: "p5" });
+    expect(m.doctorHistory).toEqual([]);
+  });
+
+  it("times out after 30 seconds with missing actions (missing mafia votes count for nobody)", () => {
+    let m = table(SEVEN);
+    m = act(m, "p1", "mafia", "p6");
+    expect(advance(m, T0 + 29_999).phase).toBe("mafia");
+    m = advance(m, T0 + 30_000);
+    expect(m.phase).toBe("detective");
+    m = advance(m, m.deadline!); // no investigation
+    expect(m.phase).toBe("doctor");
+    m = advance(m, m.deadline!); // no protection
+    expect(m.phase).toBe("dawn");
+    expect(m.dawn).toMatchObject({ outcome: "killed", victimId: "p6" });
+    expect(m.investigations).toEqual([]);
+  });
+
+  it("a dead detective or doctor: their phase waits 6 seconds, then moves on by itself", () => {
+    let m = table(SEVEN);
+    m = { ...m, players: m.players.map((p) => (p.id === "p3" || p.id === "p4" ? { ...p, alive: false } : p)) };
+    m = act(m, "p1", "mafia", "p5");
+    m = act(m, "p2", "mafia", "p5");
+    expect(m.phase).toBe("detective");
+    expect(m.deadline! - m.phaseStartedAt).toBe(6000);
+    expect(advance(m, m.phaseStartedAt + 5999).phase).toBe("detective");
+    m = advance(m, m.phaseStartedAt + 6000);
+    expect(m.phase).toBe("doctor");
+    expect(m.deadline! - m.phaseStartedAt).toBe(6000);
+    m = advance(m, m.phaseStartedAt + 6000);
+    expect(m.phase).toBe("dawn");
+    // Dead players can't act in them.
+    const d = { ...table(SEVEN, "detective"), players: m.players };
+    expect(applyPlayerMove(d, "p3", night(d, "detective", "p1"), T0 + 1000).error).toBe("MF_DEAD");
+  });
+
+  it("simultaneous submissions: each lands once, the phase changes exactly once", () => {
+    // Both mafia phones send from the same state; the database lock makes the
+    // second one run again on the first one's result (see the route).
+    const s0 = table(SEVEN);
+    const a = advance(move(s0, "p1", night(s0, "mafia", "p5")), T0 + 1000);
+    const b = advance(move(a, "p2", night(a, "mafia", "p6")), T0 + 1000);
+    expect(b.phase).toBe("detective");
+    // The first phone's retry (or a double tap) after the phase moved on changes nothing.
+    expect(applyPlayerMove(b, "p1", night(s0, "mafia", "p5"), T0 + 1000).error).toBe("MF_CLOSED");
+    expect(advance(b, T0 + 1000)).toBe(b);
+    // A repeat of the same choice is a no-op, not a second action.
+    expect(applyPlayerMove(a, "p1", night(a, "mafia", "p5"), T0 + 1000).state).toBe(a);
+  });
+
+  it("public views never show who picked or skipped", () => {
+    let m = table(SEVEN);
+    m = act(m, "p1", "mafia", SKIP);
+    const json = JSON.stringify(buildMafiaHostView(snapshotOf(m, T0 + 1000), m));
+    expect(json).not.toContain(SKIP);
+    expect(json).not.toContain("mafiaVotes");
+    // The other mafia member sees their teammate skipped.
+    expect(buildMafiaGuestView(snapshotOf(m, T0 + 1000), m, "p2")!.secret!.task!.team).toEqual([{ playerId: "p1", name: "لاعب 1", targetId: SKIP }]);
+    // A citizen sees nothing of it.
+    expect(JSON.stringify(buildMafiaGuestView(snapshotOf(m, T0 + 1000), m, "p5"))).not.toContain(SKIP);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Public reveal of deaths                                             */
+/* ------------------------------------------------------------------ */
+
+describe("a death is public only when the TV announces it", () => {
+  const SEVEN: Role[] = ["mafia", "mafia", "detective", "doctor", "citizen", "citizen", "citizen"];
+
+  function dawnWith(victim: string | null): MafiaMatch {
+    let m = table(SEVEN);
+    if (victim) {
+      m = move(m, "p1", night(m, "mafia", victim));
+      m = move(m, "p2", night(m, "mafia", victim));
+    } else {
+      m = move(m, "p1", night(m, "mafia", SKIP));
+      m = move(m, "p2", night(m, "mafia", SKIP));
+    }
+    m = advance(m, T0 + 1000); // → detective
+    m = advance(m, m.deadline!); // → doctor
+    m = advance(m, m.deadline!); // → dawn
+    expect(m.phase).toBe("dawn");
+    return m;
+  }
+
+  it("keeps the victim alive on every screen (their own phone too) until the reveal moment", () => {
+    const m = dawnWith("p5");
+    expect(alive(m, "p5")).toBe(false); // resolved on the server
+    const before = snapshotOf(m, m.phaseStartedAt + DAWN_REVEAL_MS - 1);
+    const views = [buildMafiaHostView(before, m), buildMafiaGuestView(before, m, "p6")!, buildMafiaGuestView(before, m, "p5")!, buildMafiaGuestView(before, m, "p1")!];
+    for (const v of views) {
+      expect(v.match!.players.find((p) => p.id === "p5")).toMatchObject({ alive: true, out: null });
+      expect(v.match!.dawn).toBeNull();
+      expect(v.match!.winner).toBeNull();
+      expect(v.match!.voterCount).toBe(7);
+      // The real deadline (it depends on the outcome) is hidden: the next thing due is the reveal.
+      expect(v.match!.deadline).toBe(m.phaseStartedAt + DAWN_REVEAL_MS);
+      expect(JSON.stringify(v.match)).not.toContain('"killed"');
+    }
+    expect(buildMafiaGuestView(before, m, "p5")!.secret!.alive).toBe(true);
+    expect(buildMafiaGuestView(before, m, "p1")!.secret!.teammates).toEqual([{ id: "p2", name: "لاعب 2", alive: true }]);
+
+    const after = snapshotOf(m, m.phaseStartedAt + DAWN_REVEAL_MS);
+    for (const v of [buildMafiaHostView(after, m), buildMafiaGuestView(after, m, "p6")!]) {
+      expect(v.match!.players.find((p) => p.id === "p5")).toMatchObject({ alive: false, out: { round: 1, by: "night" }, role: null });
+      expect(v.match!.dawn).toEqual({ outcome: "killed", victimId: "p5", role: null });
+      expect(v.match!.deadline).toBe(m.deadline);
+      expect(v.match!.voterCount).toBe(6);
+    }
+    expect(buildMafiaGuestView(after, m, "p5")!.secret!.alive).toBe(false);
+  });
+
+  it("a killed night and a quiet night look the same before the reveal", () => {
+    const killed = dawnWith("p5");
+    const quiet = dawnWith(null);
+    expect(killed.deadline).not.toBe(quiet.deadline); // different lengths on the server
+    const pub = (m: MafiaMatch) => {
+      const v = buildMafiaHostView(snapshotOf(m, m.phaseStartedAt + 1000), m).match!;
+      return { ...v, phaseStartedAt: 0, deadline: v.deadline! - m.phaseStartedAt };
+    };
+    expect(pub(killed)).toEqual(pub(quiet));
+  });
+
+  it("does not leak the end of the game before the reveal", () => {
+    // 4 players, one citizen already out: the mafia's kill ends the game.
+    let m = table(["mafia", "detective", "doctor", "citizen"]);
+    m = { ...m, players: m.players.map((p) => (p.id === "p4" ? { ...p, alive: false, out: { round: 0, by: "vote" as const } } : p)) };
+    m = advance(move(m, "p1", night(m, "mafia", "p2")), T0 + 1000);
+    m = advance(m, m.deadline!);
+    m = advance(m, m.deadline!);
+    expect(m.phase).toBe("dawn");
+    expect(m.winner?.team).toBe("mafia");
+    const before = buildMafiaHostView(snapshotOf(m, m.phaseStartedAt + 1000), m).match!;
+    expect(before.winner).toBeNull();
+    expect(before.players.filter((p) => p.alive).length).toBe(3);
+    expect(buildMafiaHostView(snapshotOf(m, m.phaseStartedAt + DAWN_REVEAL_MS), m).match!.winner?.team).toBe("mafia");
+  });
+
+  it("the voted-out player stays in until the verdict is read, with the tally", () => {
+    let v = table(SEVEN, "voting");
+    for (const id of ["p2", "p3", "p4", "p5", "p6", "p7"]) v = move(v, id, { type: "vote", round: 1, choice: "p1" });
+    v = move(v, "p1", { type: "vote", round: 1, choice: "skip" });
+    v = advance(v, T0 + 1000);
+    expect(v.phase).toBe("verdict");
+    const before = buildMafiaHostView(snapshotOf(v, v.phaseStartedAt + VERDICT_REVEAL_MS - 1), v).match!;
+    expect(before.verdict).toBeNull();
+    expect(before.players.every((p) => p.alive)).toBe(true);
+    expect(before.deadline).toBe(v.phaseStartedAt + VERDICT_REVEAL_MS);
+    const after = buildMafiaHostView(snapshotOf(v, v.phaseStartedAt + VERDICT_REVEAL_MS), v).match!;
+    expect(after.verdict).toMatchObject({ outcome: "eliminated", targetId: "p1", role: null });
+    expect(after.players.find((p) => p.id === "p1")!.alive).toBe(false);
+  });
+
+  it("a pause before the reveal keeps it hidden, and the reveal still comes at the same point after resuming", () => {
+    let m = dawnWith("p5");
+    m = applyHostMove(m, { type: "pause" }, m.phaseStartedAt + 2000).state!;
+    const paused = buildMafiaHostView(snapshotOf(m, m.phaseStartedAt + 60_000), m).match!;
+    expect(paused.dawn).toBeNull();
+    expect(paused.pausedRemaining).toBe(DAWN_REVEAL_MS - 2000);
+    const resumedAt = m.phaseStartedAt + 60_000;
+    m = applyHostMove(m, { type: "resume" }, resumedAt).state!;
+    expect(announced(m, resumedAt + DAWN_REVEAL_MS - 2001).dawn).toBeNull();
+    expect(announced(m, resumedAt + DAWN_REVEAL_MS - 2000).dawn).toMatchObject({ outcome: "killed" });
+  });
+
+  it("never names the victim's role, not even after the reveal", () => {
+    const m = dawnWith("p3"); // the detective
+    const after = snapshotOf(m, m.phaseStartedAt + DAWN_REVEAL_MS);
+    for (const v of [buildMafiaHostView(after, m), buildMafiaGuestView(after, m, "p6")!]) {
+      expect(JSON.stringify(v.match)).not.toMatch(/"role":"(mafia|detective|doctor|citizen)"/);
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Skip the discussion                                                 */
+/* ------------------------------------------------------------------ */
+
+describe("«سكّب النقاش!»", () => {
+  it("ends the discussion at once and opens the vote with its full 30 seconds", () => {
+    const m = { ...table(SIX, "discussion"), deadline: T0 + SECONDS.discussion * 1000, votes: { p1: "p2" } };
+    const v = applyHostMove(m, { type: "skipDiscussion" }, T0 + 12_000).state!;
+    expect(v.phase).toBe("voting");
+    expect(v.phaseStartedAt).toBe(T0 + 12_000);
+    expect(v.deadline).toBe(T0 + 12_000 + SECONDS.voting * 1000);
+    expect(v.votes).toEqual({});
+    // The vote runs on its own clock.
+    expect(advance(v, T0 + 12_000 + SECONDS.voting * 1000 - 1).phase).toBe("voting");
+    expect(advance(v, T0 + 12_000 + SECONDS.voting * 1000).phase).toBe("verdict");
+    // A second click lands on the vote: no-op.
+    expect(applyHostMove(v, { type: "skipDiscussion" }, T0 + 12_100).state).toBe(v);
+  });
+
+  it("does nothing outside the discussion", () => {
+    for (const phase of ["mafia", "dawn", "voting", "verdict", "gameOver"] as Phase[]) {
+      const m = table(SIX, phase);
+      expect(applyHostMove(m, { type: "skipDiscussion" }, T0 + 1000).state).toBe(m);
+    }
+  });
+
+  it("works while paused, and the vote starts unpaused", () => {
+    let m: MafiaMatch = { ...table(SIX, "discussion"), deadline: T0 + 90_000 };
+    m = applyHostMove(m, { type: "pause" }, T0 + 5000).state!;
+    const v = applyHostMove(m, { type: "skipDiscussion" }, T0 + 9000).state!;
+    expect(v).toMatchObject({ phase: "voting", paused: null, deadline: T0 + 9000 + 30_000 });
   });
 });

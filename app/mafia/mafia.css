@@ -981,6 +981,18 @@ html:has(.mf) body {
 .mf-field input[type="range"] {
   accent-color: var(--mf-gold);
 }
+.mf-field-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1em;
+}
+.mf-field-row b {
+  min-width: 3.2em;
+  color: var(--mf-gold);
+  font-family: var(--mf-latin), serif;
+  text-align: left;
+}
 .mf-field select {
   min-height: 44px;
   padding: 0 0.7em;
@@ -1500,6 +1512,10 @@ html:has(.mf) body {
 .mf-bigclock.is-urgent {
   color: var(--mf-crimson-lit);
   animation: mf-pulse 1s ease-in-out infinite;
+}
+.mf-skip-discussion {
+  margin-top: 0.6em;
+  letter-spacing: 0;
 }
 
 /* Voting */
@@ -2028,6 +2044,52 @@ html:has(.mf) body {
   text-align: center;
 }
 
+/*
+ * The role card screen: exactly one screen tall, never scrolls or bounces
+ * (html.mf-noscroll is set only while it is up). The card takes the height
+ * that is left and scales its text with its width.
+ */
+html.mf-noscroll,
+html.mf-noscroll body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.mf-phone[data-phase="roleReveal"] {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+.mf-phone[data-phase="roleReveal"] .mf-phone-body {
+  min-height: 0;
+  padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
+}
+.mf-phone-reveal {
+  min-height: 0;
+  gap: clamp(8px, 2dvh, 16px);
+}
+.mf-phone-reveal .mf-phone-title {
+  font-size: clamp(1.8rem, 5dvh, 2.6rem);
+}
+.mf-phone-reveal .mf-phone-text {
+  font-size: clamp(0.92rem, 2.2dvh, 1.05rem);
+  line-height: 1.6;
+}
+.mf-phone-reveal .mf-hold {
+  container-type: inline-size;
+  /* Header, title, text and hint take about 15rem; the card (5:7) gets the rest. */
+  width: min(78vw, 21rem, calc((100dvh - 15rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 5 / 7));
+  flex-shrink: 0;
+  -webkit-user-drag: none;
+}
+.mf-phone-reveal .mf-hold .mf-card {
+  width: 100%;
+  /* 16px on a 21rem card, smaller on a smaller one. */
+  font-size: clamp(9px, 4.76cqi, 16px);
+}
+
 /* Hold to reveal */
 .mf-hold {
   padding: 0;
@@ -2241,6 +2303,18 @@ html:has(.mf) body {
 .mf-skip-vote.is-selected {
   background: linear-gradient(#d8bd85, #a5864d);
   color: #08090b;
+}
+.mf-skip-vote:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.mf-skip-night {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 56px;
+  font-size: 1.15rem;
 }
 .mf-task-foot {
   margin: 4px 0 0;

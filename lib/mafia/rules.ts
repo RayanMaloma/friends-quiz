@@ -41,16 +41,25 @@ export const SECONDS = {
 } as const;
 
 /**
- * A night phase (and the role reveal) closes early once everyone who acts in
- * it has acted and nobody changed their mind for this long.
+ * The role reveal closes early once everyone has looked at their card and
+ * nobody touched it for this long. (Night phases close as soon as every
+ * living actor has picked or skipped.)
  */
 export const SETTLE_MS = 5000;
 
 /**
- * A night phase whose role is out still runs, for a random [min, max]
- * seconds: about as long as a real choice plus the settle.
+ * A night phase whose role is out (or a doctor with nobody left to protect)
+ * still runs, for this many seconds, then moves on by itself.
  */
-export const IDLE_NIGHT_SECONDS = [12, 24] as const;
+export const IDLE_NIGHT_SECONDS = 6;
+
+/**
+ * When the result of the dawn and the verdict becomes public, in ms after
+ * the phase starts: the TV's reveal moment. Until then every public view
+ * shows the night victim (or the voted-out player) as still in the game.
+ */
+export const DAWN_REVEAL_MS = 5600;
+export const VERDICT_REVEAL_MS = 3800;
 
 /** `article`: the form used after «كان» (كان قاتل، كان الشايب، كان مواطن). */
 export const ROLE_INFO: Record<Role, { name: string; article: string; team: string; tagline: string; goal: string }> = {

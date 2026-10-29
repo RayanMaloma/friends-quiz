@@ -2,8 +2,9 @@
 
 /**
  * A player's phone: the secret instrument. It holds the role card (press and
- * hold — let go and it hides), the night actions (one tap, no confirmation,
- * changeable until the phase closes), the vote, and the player's own fate.
+ * hold — let go and it hides), the night actions (one tap to pick or to skip,
+ * no confirmation; the phase moves on as soon as every actor has chosen), the
+ * vote, and the player's own fate.
  * It is silent: no sounds, no vibration, nothing that tells the room who is
  * busy at night.
  */
@@ -15,7 +16,7 @@ import { playerStore, type PlayerCreds } from "@/lib/client/storage";
 import { useGameSync } from "@/lib/client/useGameSync";
 import { useWakeLock } from "@/lib/client/useWakeLock";
 import { ROLE_INFO, SETTLE_MS, teamOf, TEAM_NAME } from "@/lib/mafia/rules";
-import type { PlayerMove } from "@/lib/mafia/types";
+import { SKIP, type PlayerMove } from "@/lib/mafia/types";
 import type { MafiaGuestView, MafiaPublicMatch, MafiaSecret, MafiaTask } from "@/lib/mafia/views";
 import { Emblem } from "./Emblem";
 import { Scene, type Mood } from "./Scene";
@@ -48,8 +49,9 @@ export function MafiaPhone({ creds }: { creds: PlayerCreds }) {
         setError(resultMessage(res));
         return false;
       }
-      // Once everyone has acted, the phase closes after a short settle: knock then.
-      if (move.type === "night" || move.type === "seeRole") setTimeout(refresh, SETTLE_MS + 500);
+      // Once everyone has looked, the role reveal closes after a short settle: knock then.
+      // (A night phase moves on in the same request that completes it.)
+      if (move.type === "seeRole") setTimeout(refresh, SETTLE_MS + 500);
       return true;
     },
     [mutate, sessionId, playerToken, refresh],
@@ -199,6 +201,7 @@ function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret
   if (m.phase === "roleReveal") {
     return (
       <div className="mf-phone-reveal">
+        <NoScroll />
         <h1 className="mf-phone-title">بطاقتك</h1>
         <p className="mf-phone-text">اضغط مطوّل عشان تشوف دورك. أول ما ترفع إصبعك تختفي.</p>
         <HoldCard secret={secret} onFirstHold={secret.seen ? undefined : () => void act({ type: "seeRole" })} />
@@ -228,6 +231,17 @@ function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret
     return <VoteTask key={`vote-${m.round}`} m={m} task={secret.task} act={act} left={left} />;
   }
 
+  // The detective's finding stays on their phone for the rest of the night (and in the notebook after).
+  const finding =
+    secret.role === "detective" && (m.phase === "detective" || m.phase === "doctor") ? secret.investigations.find((i) => i.round === m.round) : undefined;
+  if (finding) {
+    return (
+      <div className="mf-task" data-kind="detective">
+        <Finding name={finding.name} role={finding.role} />
+      </div>
+    );
+  }
+
   switch (m.phase) {
     case "nightfall":
     case "mafia":
@@ -248,22 +262,38 @@ function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret
 /* ------------------------------------------------------------------ */
 
 const TASK_COPY = {
-  mafia: { title: "اختر الضحية", hint: "ضغطة وحدة تكفي · تقدر تغيّر قبل ما ينتهي الوقت" },
+  mafia: { title: "اختر الضحية", hint: "ضغطة وحدة تكفي · تقدر تغيّر لين ما يختار الباقين" },
   detective: { title: "مع مين تحقق؟", hint: "ضغطة وحدة · تعرف دوره فورًا، ولا تقدر تغيّر" },
   doctor: { title: "مين تحمي الليلة؟", hint: "ضغطة وحدة · تقدر تحمي نفسك · كل شخص مرة وحدة باللعبة" },
 } as const;
 
+function Finding({ name, role }: { name: string; role: MafiaSecret["role"] }) {
+  return (
+    <div className="mf-finding">
+      <p className="mf-eyebrow">نتيجة التحقيق</p>
+      <h2>{name}</h2>
+      <RoleChip role={role} />
+      <p className="mf-hint">النتيجة لك وحدك. احفظها… وتصرّف بحكمة. تلقاها بعدين في «بطاقتي».</p>
+    </div>
+  );
+}
+
 function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: MafiaTask; secret: MafiaSecret; act: Act; left: number | null }) {
   const kind = task.kind as "mafia" | "detective" | "doctor";
   const [pending, setPending] = useState<string | null>(null);
+  // One request at a time: a second tap while the first is on its way is dropped.
+  const sending = useRef(false);
   const choice = pending ?? task.choice;
   const copy = TASK_COPY[kind];
   const result = kind === "detective" && task.locked ? secret.investigations.find((i) => i.round === m.round) : undefined;
+  const skippers = task.team.filter((x) => x.targetId === SKIP);
 
   async function pick(id: string) {
-    if (m.paused || (task.locked && id !== task.choice)) return;
+    if (m.paused || sending.current || id === choice || (task.locked && id !== task.choice)) return;
+    sending.current = true;
     setPending(id);
     await act({ type: "night", phase: kind, round: m.round, targetId: id });
+    sending.current = false;
     setPending(null);
   }
 
@@ -277,12 +307,7 @@ function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: 
         </div>
       </header>
       {result ? (
-        <div className="mf-finding">
-          <p className="mf-eyebrow">نتيجة التحقيق</p>
-          <h2>{result.name}</h2>
-          <RoleChip role={result.role} />
-          <p className="mf-hint">النتيجة لك وحدك. احفظها… وتصرّف بحكمة.</p>
-        </div>
+        <Finding name={result.name} role={result.role} />
       ) : task.targets.length === 0 ? (
         // The doctor has protected everyone left: the phase still runs, so nobody can tell.
         <p className="mf-hint">ما فيه أحد تقدر تحميه الليلة… انتظر الصبح.</p>
@@ -316,8 +341,19 @@ function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: 
           ))}
         </ul>
       )}
+      {!result && task.targets.length > 0 && (
+        <button
+          className={`mf-skip-vote mf-skip-night ${choice === SKIP ? "is-selected" : ""}`}
+          aria-pressed={choice === SKIP}
+          disabled={m.paused || (task.locked && choice !== SKIP)}
+          onClick={() => pick(SKIP)}
+        >
+          تخطي
+          {skippers.length > 0 && <span className="mf-target-tags">{skippers.map((x) => x.name).join("، ")}</span>}
+        </button>
+      )}
       <p className="mf-task-foot">
-        {choice ? "اختيارك وصل ✓" : "ما اخترت للحين"}
+        {choice === SKIP ? "تخطّيت ✓" : choice ? "اختيارك وصل ✓" : "ما اخترت للحين"}
         {left !== null && !m.paused && <> · باقي <b dir="ltr">{Math.ceil(left / 1000)}</b> ث</>}
       </p>
     </div>
@@ -327,6 +363,28 @@ function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: 
 /* ------------------------------------------------------------------ */
 /* Day vote                                                            */
 /* ------------------------------------------------------------------ */
+
+/**
+ * The role card screen doesn't scroll at all (no bounce either): the card
+ * fits the screen. Only while this screen is up; the rest of the app scrolls.
+ */
+function NoScroll() {
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("mf-noscroll");
+    // iOS still rubber-bands a fixed page on a drag: cancel touch moves here.
+    const stop = (e: TouchEvent) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    document.addEventListener("touchmove", stop, { passive: false });
+    window.scrollTo(0, 0);
+    return () => {
+      root.classList.remove("mf-noscroll");
+      document.removeEventListener("touchmove", stop);
+    };
+  }, []);
+  return null;
+}
 
 function VoteTask({ m, task, act, left }: { m: MafiaPublicMatch; task: MafiaTask; act: Act; left: number | null }) {
   const [pending, setPending] = useState<string | null>(null);
@@ -453,7 +511,7 @@ function useHold(onFirst?: () => void) {
 function HoldCard({ secret, onFirstHold }: { secret: MafiaSecret; onFirstHold?: () => void }) {
   const { held, bind } = useHold(onFirstHold);
   return (
-    <button type="button" className={`mf-hold ${held ? "is-held" : ""}`} aria-label="اضغط مطوّل عشان تشوف دورك" {...bind}>
+    <button type="button" className={`mf-hold ${held ? "is-held" : ""}`} aria-label="اضغط مطوّل عشان تشوف دورك" draggable={false} {...bind}>
       {/* While not held, the role is not in the page at all. */}
       {held ? <RoleCard role={secret.role} teammates={secret.role === "mafia" ? secret.teammates : undefined} /> : <CardBack hint="اضغط مطوّل" />}
     </button>

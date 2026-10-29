@@ -76,11 +76,16 @@ function parsePlayerMove(raw: unknown): PlayerMove | null {
 function parseHostMove(raw: unknown): HostMove | null {
   if (!raw || typeof raw !== "object") return null;
   const t = (raw as Record<string, unknown>).type;
-  return t === "pause" || t === "resume" || t === "skipReveal" ? { type: t } : null;
+  return t === "pause" || t === "resume" || t === "skipReveal" || t === "skipDiscussion" ? { type: t } : null;
 }
+
+/** Everyone still in the room (released devices are not dealt in). */
+const seatedPlayers = (snapshot: Snapshot) =>
+  snapshot.players.filter((p) => p.token_hash !== null).map((p) => ({ id: p.id, name: p.display_name }));
 
 type Change =
   | { kind: "match"; run: (m: MafiaMatch, now: number) => EngineResult }
+  | { kind: "rematch" }
   | { kind: "lobby" }
   | { kind: "close" };
 
@@ -106,6 +111,19 @@ async function commit(body: Record<string, unknown>, first: Identified, change: 
       status = "LOBBY";
     } else if (change?.kind === "close") {
       status = "FINISHED";
+    } else if (change?.kind === "rematch") {
+      // Same room, same players, fresh roles, straight into the intro. Only
+      // once the match is over: a second click (or a retry after another
+      // device saved) finds the new match running and changes nothing.
+      next = current ? advance(current, now) : null;
+      if (next?.phase === "gameOver") {
+        const created = createMatch(seatedPlayers(snapshot), now);
+        if (!created.state) {
+          if (next !== current) await save(snapshot, next, status);
+          return Response.json({ ok: false, error: "RULE", message: created.error }, { status: 409 });
+        }
+        next = created.state;
+      }
     } else if (current) {
       next = advance(current, now);
       if (change?.kind === "match") {
@@ -182,9 +200,7 @@ export async function POST(req: Request) {
     if (actor.kind === "host") {
       if (action === "start") {
         if (snapshot.session.status !== "LOBBY" || mafiaMatchOf(snapshot)) return await commit(body, who, null);
-        // Released devices (token cleared) are not dealt in.
-        const seated = snapshot.players.filter((p) => p.token_hash !== null).map((p) => ({ id: p.id, name: p.display_name }));
-        const created = createMatch(seated, Date.parse(snapshot.now));
+        const created = createMatch(seatedPlayers(snapshot), Date.parse(snapshot.now));
         if (created.error) return Response.json({ ok: false, error: "RULE", message: created.error }, { status: 409 });
         const res = await rpc<RpcResult>("fq_mafia_save_match", {
           p_session_id: snapshot.session.id,
@@ -203,7 +219,10 @@ export async function POST(req: Request) {
         return await commit(body, who, { kind: "match", run: (m, now) => applyHostMove(m, move, now) });
       }
 
-      // Back to the lobby for a rematch (same room, same players, new roles).
+      // After the end: a new match right away (same room, same players, new roles, no QR lobby).
+      if (action === "rematch") return await commit(body, who, { kind: "rematch" });
+
+      // Back to the lobby (the host cancels a match).
       if (action === "lobby") return await commit(body, who, { kind: "lobby" });
 
       if (action === "close") return await commit(body, who, { kind: "close" });

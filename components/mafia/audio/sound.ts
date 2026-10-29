@@ -1,11 +1,15 @@
 /**
  * Atmosphere and sound effects for the TV, synthesized with the Web Audio
- * API: no audio files to load, license or lose. Everything goes through one
- * master gain (volume / mute). Nothing here plays on phones.
+ * API: no audio files to load, license or lose. This is the "theme" channel
+ * (صوت الثيم): everything goes through one master gain (its volume / the
+ * global mute) and a limiter, so nothing clips. The narrator is a separate
+ * channel (narrator.ts). Nothing here plays on phones.
  *
  * The AudioContext is created on the first user gesture (browser autoplay
  * rules); until then every call is a silent no-op.
  */
+
+import { DUCK_LEVEL } from "./settings";
 
 export type Ambience = "off" | "lobby" | "night" | "day" | "crimson" | "gold";
 
@@ -27,6 +31,9 @@ export type Sfx =
 
 type Layer = "wind" | "rain" | "drone";
 
+/** The ambience bus level, before ducking. */
+const AMBIENCE_LEVEL = 0.55;
+
 const MIX: Record<Ambience, Record<Layer, number>> = {
   off: { wind: 0, rain: 0, drone: 0 },
   lobby: { wind: 0.22, rain: 0.1, drone: 0.16 },
@@ -47,7 +54,7 @@ export class MafiaSound {
   private sources: AudioScheduledSourceNode[] = [];
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private ambience: Ambience = "off";
-  private volume = 0.8;
+  private volume = 0.2;
   private muted = false;
   private ducked = false;
 
@@ -71,8 +78,17 @@ export class MafiaSound {
     if (!AC) return;
     const ctx = new AC();
     this.ctx = ctx;
+    // A gentle limiter at the end: stacked layers and stings never clip.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    limiter.connect(ctx.destination);
     this.master = ctx.createGain();
-    this.master.connect(ctx.destination);
+    this.master.gain.value = 0;
+    this.master.connect(limiter);
     this.applyVolume();
 
     this.reverb = ctx.createConvolver();
@@ -82,7 +98,7 @@ export class MafiaSound {
     this.reverb.connect(wet).connect(this.master);
 
     this.ambienceBus = ctx.createGain();
-    this.ambienceBus.gain.value = 0.55;
+    this.ambienceBus.gain.value = AMBIENCE_LEVEL * (this.ducked ? DUCK_LEVEL : 1);
     this.ambienceBus.connect(this.master);
     this.fxBus = ctx.createGain();
     this.fxBus.gain.value = 0.9;
@@ -174,6 +190,7 @@ export class MafiaSound {
     this.layers = { wind, rain, drone };
   }
 
+  /** The theme channel's level (0–1) and the global mute. Applies at once, smoothly. */
   setVolume(volume: number, muted: boolean) {
     this.volume = Math.min(1, Math.max(0, volume));
     this.muted = muted;
@@ -182,14 +199,18 @@ export class MafiaSound {
 
   private applyVolume() {
     if (!this.ctx) return;
-    const v = this.muted ? 0 : this.volume * (this.ducked ? 0.55 : 1);
-    this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.15);
+    this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.08);
   }
 
-  /** Lowers everything a little while the narrator speaks. */
+  /**
+   * While the narrator speaks, the ambience drops to DUCK_LEVEL of its level
+   * (quickly), and comes back slowly once the line ends.
+   */
   duck(on: boolean) {
+    if (on === this.ducked) return;
     this.ducked = on;
-    this.applyVolume();
+    if (!this.ctx) return;
+    this.ambienceBus.gain.setTargetAtTime(AMBIENCE_LEVEL * (on ? DUCK_LEVEL : 1), this.ctx.currentTime, on ? 0.12 : 0.6);
   }
 
   setAmbience(a: Ambience, immediate = false) {

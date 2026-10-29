@@ -33,11 +33,15 @@ export interface MafiaPlayer {
   out: { round: number; by: "night" | "vote" } | null;
 }
 
+/** A night actor's "no target tonight" (counts as having acted). */
+export const SKIP = "skip";
+
 export interface NightState {
-  /** Living mafia member id → target id. */
+  /** Living mafia member id → target id, or SKIP. */
   mafiaVotes: Record<string, string>;
-  /** The detective investigates once per night (locked once chosen). */
+  /** The detective investigates once per night (locked once chosen). SKIP = no investigation. */
   detectiveTargetId: string | null;
+  /** SKIP = nobody protected tonight. */
   doctorTargetId: string | null;
 }
 
@@ -80,7 +84,7 @@ export interface MafiaMatch {
   deadline: number | null;
   /** Host pause: the time that was left on the clock. */
   paused: { remaining: number | null } | null;
-  /** Last change by an actor in this phase (night phases and role reveal close early after SETTLE_MS). */
+  /** Last change by an actor in this phase (the role reveal closes early after SETTLE_MS). */
   lastActionAt: number | null;
   players: MafiaPlayer[];
   roleSeen: string[];
@@ -98,10 +102,11 @@ export interface MafiaMatch {
 
 export type PlayerMove =
   | { type: "seeRole" }
+  /** `targetId` may be SKIP. */
   | { type: "night"; phase: NightPhase; round: number; targetId: string }
   | { type: "vote"; round: number; choice: string };
 
-export type HostMove = { type: "pause" } | { type: "resume" } | { type: "skipReveal" };
+export type HostMove = { type: "pause" } | { type: "resume" } | { type: "skipReveal" } | { type: "skipDiscussion" };
 
 export type EngineError =
   | "MF_PAUSED"

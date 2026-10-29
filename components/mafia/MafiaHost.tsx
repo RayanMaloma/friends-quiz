@@ -186,9 +186,6 @@ function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number)
       timers.current.push(setTimeout(fn, Math.max(0, wait)));
     };
     const line = (k: CueKey, name?: string | null) => cue(k, name);
-    // The named lines of this phase are known now: load them while the suspense plays.
-    if (s.phase === "dawn" && s.dawn?.victimId) narrator.prefetch([line(s.dawn.outcome === "saved" ? "dawn_saved" : "dawn_killed", nameOf(s, s.dawn.victimId))]);
-    if (s.phase === "verdict" && s.verdict?.targetId) narrator.prefetch([line("verdict_eliminated", nameOf(s, s.verdict.targetId))]);
 
     if (!late) {
       switch (s.phase) {
@@ -229,6 +226,9 @@ function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number)
     }
 
     if (s.phase === "intro") {
+      // A rematch starts straight from the finale: its last line and subtitle end here.
+      narrator.stop();
+      setSubtitle(null);
       at(0, () => sound.play("introDark"));
       at(INTRO.suspenseAt, () => sound.play("introHit"));
       at(INTRO.narrateAt, () => say(line("intro")));
@@ -236,37 +236,48 @@ function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number)
       for (const ms of [INTRO.countAt, INTRO.countAt + 1000, INTRO.countAt + 2000]) at(ms, () => sound.play("count"));
     }
 
-    // The reveal moments inside dawn and verdict (also after a late arrival, if still ahead).
+    // The suspense before the reveal inside dawn and verdict (the result itself isn't known yet).
+    if (s.phase === "dawn") at(DAWN_REVEAL_MS - 2600, () => sound.play("suspense"));
+    if (s.phase === "verdict") at(VERDICT_REVEAL_MS - 2600, () => sound.play("suspense"));
+  }, [key, narrator, sound, sessionId]);
+
+  // The reveal: the server only sends the dawn / verdict result at its
+  // reveal moment, so it is announced the moment it arrives.
+  const reveal = m && ((m.phase === "dawn" && m.dawn) || (m.phase === "verdict" && m.verdict)) ? key : null;
+  const revealed = useRef<string | null>(null);
+  useEffect(() => {
+    const s = matchRef.current;
+    if (!reveal || !s || revealed.current === reveal) return;
+    revealed.current = reveal;
+    // Arrived long after the reveal (reload, reconnect): the screen shows it, silently.
+    if (ageRef.current > (s.phase === "dawn" ? DAWN_REVEAL_MS : VERDICT_REVEAL_MS) + 4000) return;
+    const say = (c: Cue) => {
+      setSubtitle(c);
+      if (markSpoken(`${sessionId}|${reveal}|${c.key}`)) void narrator.speak(c, { waitMs: LINE_WAIT_MS });
+    };
     if (s.phase === "dawn" && s.dawn) {
       const d = s.dawn;
-      at(DAWN_REVEAL_MS - 2600, () => sound.play("suspense"));
-      at(DAWN_REVEAL_MS, () => {
-        if (d.outcome === "killed") {
-          sound.play("sting");
-          say(line("dawn_killed", nameOf(s, d.victimId)));
-        } else if (d.outcome === "saved") {
-          sound.play("saved");
-          say(line("dawn_saved", nameOf(s, d.victimId)));
-        } else {
-          sound.play("quiet");
-          say(line("dawn_quiet"));
-        }
-      });
-    }
-    if (s.phase === "verdict" && s.verdict) {
+      if (d.outcome === "killed") {
+        sound.play("sting");
+        say(cue("dawn_killed", nameOf(s, d.victimId)));
+      } else if (d.outcome === "saved") {
+        sound.play("saved");
+        say(cue("dawn_saved", nameOf(s, d.victimId)));
+      } else {
+        sound.play("quiet");
+        say(cue("dawn_quiet"));
+      }
+    } else if (s.phase === "verdict" && s.verdict) {
       const v = s.verdict;
-      at(VERDICT_REVEAL_MS - 2600, () => sound.play("suspense"));
-      at(VERDICT_REVEAL_MS, () => {
-        if (v.outcome === "eliminated") {
-          sound.play("sting");
-          say(line("verdict_eliminated", nameOf(s, v.targetId)));
-        } else {
-          sound.play("quiet");
-          say(line(v.outcome === "skip" ? "verdict_skip" : "verdict_tie"));
-        }
-      });
+      if (v.outcome === "eliminated") {
+        sound.play("sting");
+        say(cue("verdict_eliminated", nameOf(s, v.targetId)));
+      } else {
+        sound.play("quiet");
+        say(cue(v.outcome === "skip" ? "verdict_skip" : "verdict_tie"));
+      }
     }
-  }, [key, narrator, sound, sessionId]);
+  }, [reveal, narrator, sound, sessionId]);
 
   useEffect(() => () => {
     for (const t of timers.current) clearTimeout(t);
@@ -418,17 +429,8 @@ function SoundPanel({ onClose }: { onClose: () => void }) {
         <h3>الصوت والراوي</h3>
         <button className="mf-icon-btn" onClick={onClose} aria-label="إغلاق">✕</button>
       </div>
-      <label className="mf-field">
-        <span>مستوى الصوت</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={settings.volume}
-          onChange={(e) => update({ volume: Number(e.target.value), muted: false })}
-        />
-      </label>
+      <VolumeSlider label="صوت الثيم" value={settings.themeVolume} onChange={(v) => update({ themeVolume: v, muted: false })} />
+      <VolumeSlider label="صوت الراوي" value={settings.narratorVolume} onChange={(v) => update({ narratorVolume: v, muted: false })} />
       <label className="mf-check">
         <input type="checkbox" checked={settings.muted} onChange={(e) => update({ muted: e.target.checked })} />
         <span>كتم كل الأصوات</span>
@@ -467,6 +469,19 @@ function SoundPanel({ onClose }: { onClose: () => void }) {
         جرّب الراوي
       </button>
     </div>
+  );
+}
+
+function VolumeSlider({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const pct = Math.round(value * 100);
+  return (
+    <label className="mf-field">
+      <span className="mf-field-row">
+        {label}
+        <b dir="ltr">{pct}%</b>
+      </span>
+      <input type="range" min={0} max={100} step={5} value={pct} aria-valuetext={`${pct}%`} onChange={(e) => onChange(Number(e.target.value) / 100)} />
+    </label>
   );
 }
 
@@ -658,26 +673,25 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
     case "mafia":
     case "detective":
     case "doctor": {
-      const copy = {
-        mafia: { title: "القتلة… جاء دوركم", lede: "اختاروا ضحيتكم من جوالاتكم… بصمت." },
-        detective: { title: "الشايب… حان وقت التحقيق", lede: "اختر شخص واحد… وتعرف حقيقته." },
-        doctor: { title: "الطبيب… اختر من تحميه", lede: "لو كان هو الهدف، بينجو الليلة." },
+      const title = {
+        mafia: "القتلة… جاء دوركم",
+        detective: "الشايب… حان وقت التحقيق",
+        doctor: "الطبيب… اختر من تحميه",
       }[m.phase];
       return (
         <div className="mf-scene-text mf-night-role" data-role={m.phase}>
           <p className="mf-eyebrow">{nightName(m.round)}</p>
           <Emblem role={m.phase} className="mf-night-emblem" />
-          <h1 className="mf-headline">{copy.title}</h1>
-          <p className="mf-lede">{copy.lede}</p>
+          <h1 className="mf-headline">{title}</h1>
           <Countdown ms={left} total={total} size="lg" />
         </div>
       );
     }
 
     case "dawn": {
+      // The result arrives from the server at the reveal moment, not before.
       const d = m.dawn;
-      const revealed = t >= DAWN_REVEAL_MS;
-      if (!revealed || !d) {
+      if (!d) {
         return (
           <div className="mf-scene-text mf-dawn">
             <p className="mf-eyebrow mf-fade">{nightName(m.round)} انتهت</p>
@@ -723,10 +737,8 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
           <div className={`mf-bigclock ${left !== null && left <= 10000 ? "is-urgent" : ""}`} dir="ltr" role="timer">
             {formatClock(left)}
           </div>
-          <h1 className="mf-headline">ناقشوا… وشكّوا في بعض</h1>
-          <p className="mf-lede">
-            {m.players.filter((p) => p.alive).length} باقين بالمدينة · اللي طلعوا ما يتكلمون
-          </p>
+          <h1 className="mf-headline">وقــت النقــاش</h1>
+          <SkipDiscussion run={run} />
         </div>
       );
 
@@ -749,7 +761,7 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
 
     case "verdict": {
       const v = m.verdict;
-      if (!v || t < VERDICT_REVEAL_MS) {
+      if (!v) {
         return (
           <div className="mf-scene-text mf-verdict-wait">
             <p className="mf-eyebrow">انتهى التصويت</p>
@@ -791,14 +803,39 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
   }
 }
 
+/** Host only (this is the TV): ends the discussion now and opens the vote with its full timer. */
+function SkipDiscussion({ run }: { run: (a: string, x?: Record<string, unknown>) => Promise<void> }) {
+  const sent = useRef(false);
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      className="mf-btn mf-btn-crimson mf-btn-lg mf-skip-discussion"
+      disabled={busy}
+      onClick={async () => {
+        // A ref, not just state: a double click lands before the re-render. The server ignores repeats too.
+        if (sent.current) return;
+        sent.current = true;
+        setBusy(true);
+        await run("host", { move: { type: "skipDiscussion" } });
+        sent.current = false;
+        setBusy(false);
+      }}
+    >
+      سكّب النقاش!
+    </button>
+  );
+}
+
 function outLabel(p: MafiaPublicPlayer): string {
   if (!p.out) return "نجا";
   return p.out.by === "night" ? `قُتل بالليلة ${p.out.round}` : `طُرد بتصويت يوم ${p.out.round}`;
 }
 
 function Finale({ m, run }: { m: MafiaPublicMatch; run: (a: string, x?: Record<string, unknown>) => Promise<void> }) {
+  const { unlock } = useMafiaAudio();
   const team = m.winner?.team ?? "citizens";
   const [busy, setBusy] = useState(false);
+  const starting = useRef(false);
   const order: Role[] = ["mafia", "detective", "doctor", "citizen"];
   const cast = [...m.players].sort((a, b) => order.indexOf(a.role!) - order.indexOf(b.role!));
   return (
@@ -824,8 +861,13 @@ function Finale({ m, run }: { m: MafiaPublicMatch; run: (a: string, x?: Record<s
           className="mf-btn mf-btn-gold mf-btn-lg"
           disabled={busy}
           onClick={async () => {
+            // Same room and players, new roles, straight into the intro (no QR lobby).
+            if (starting.current) return;
+            starting.current = true;
             setBusy(true);
-            await run("lobby");
+            await unlock();
+            await run("rematch");
+            starting.current = false;
             setBusy(false);
           }}
         >

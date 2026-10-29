@@ -9,10 +9,23 @@
  * - The night is collected in full (mafia → detective → doctor) and
  *   resolved once, so a detective or doctor killed that night still acted,
  *   and victory is only checked after the doctor's protection.
+ * - A night phase ends the moment every living actor has picked or skipped
+ *   (in the same request that completes it), else at its deadline.
  */
-import { IDLE_NIGHT_SECONDS, MAX_PLAYERS, MIN_PLAYERS, roleCounts, SECONDS, SETTLE_MS, type Role } from "./rules";
+import {
+  DAWN_REVEAL_MS,
+  IDLE_NIGHT_SECONDS,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  roleCounts,
+  SECONDS,
+  SETTLE_MS,
+  VERDICT_REVEAL_MS,
+  type Role,
+} from "./rules";
 import {
   NIGHT_PHASES,
+  SKIP,
   type EngineResult,
   type HostMove,
   type MafiaMatch,
@@ -137,7 +150,7 @@ export function checkWinner(players: MafiaPlayer[]): MafiaMatch["winner"] {
 /* Phases                                                              */
 /* ------------------------------------------------------------------ */
 
-function phaseSeconds(m: MafiaMatch, phase: Phase): number | null {
+export function phaseSeconds(m: MafiaMatch, phase: Phase = m.phase): number | null {
   switch (phase) {
     case "intro":
       return SECONDS.intro;
@@ -169,10 +182,9 @@ function enter(m: MafiaMatch, phase: Phase, now: number): MafiaMatch {
 }
 
 /**
- * Every night phase runs every night, even when its role is out (or the
- * doctor has nobody left to protect): skipping it would tell the room that
- * the detective or the doctor is dead. Such a phase just waits for a
- * plausible, random time, like a real player thinking and settling.
+ * Every night phase runs every night. When its role is out (or the doctor
+ * has nobody left to protect) it still opens, for a short fixed wait, and
+ * then moves on by itself.
  */
 function nextNightPhase(m: MafiaMatch, after: NightPhase | null, now: number, rng: Rng): MafiaMatch {
   const start = after === null ? 0 : NIGHT_PHASES.indexOf(after) + 1;
@@ -180,8 +192,7 @@ function nextNightPhase(m: MafiaMatch, after: NightPhase | null, now: number, rn
   if (!phase) return enter(resolveNight(m, rng), "dawn", now);
   const next = enter(m, phase, now);
   if (nightPhaseActive(m, phase)) return next;
-  const [lo, hi] = IDLE_NIGHT_SECONDS;
-  return { ...next, deadline: now + (lo + Math.floor(rng() * (hi - lo + 1))) * 1000 };
+  return { ...next, deadline: now + IDLE_NIGHT_SECONDS * 1000 };
 }
 
 /** Whether the current phase may close before its deadline. */
@@ -193,8 +204,10 @@ function closesEarly(m: MafiaMatch, now: number): boolean {
     case "mafia":
     case "detective":
     case "doctor": {
+      // Right away once every living actor picked or skipped (an idle phase waits for its deadline).
       const phase = m.phase;
-      return settled && nightActors(m, phase).every((a) => hasActed(m, phase, a.id));
+      const actors = nightActors(m, phase);
+      return nightPhaseActive(m, phase) && actors.every((a) => hasActed(m, phase, a.id));
     }
     case "voting":
       return voters(m).every((p) => p.id in m.votes);
@@ -261,9 +274,9 @@ export function resolveNight(m: MafiaMatch, rng: Rng = secureRandom): MafiaMatch
     counts.set(targetId, (counts.get(targetId) ?? 0) + 1);
   }
   const top = topOf(counts);
-  // A tie between the mafia's top picks is broken at random.
+  // A tie between the mafia's top picks is broken at random. Skips count for nobody.
   const victimId = top.length === 0 ? null : top[Math.floor(rng() * top.length)];
-  const protectedId = m.night.doctorTargetId;
+  const protectedId = m.night.doctorTargetId === SKIP ? null : m.night.doctorTargetId;
   const doctorHistory = protectedId ? [...m.doctorHistory, protectedId] : m.doctorHistory;
 
   let players = m.players;
@@ -339,7 +352,8 @@ export function applyPlayerMove(m: MafiaMatch, playerId: string, move: PlayerMov
     const phase = move.phase;
     if (!me.alive) return { error: "MF_DEAD" };
     if (me.role !== phase) return { error: "MF_NOT_YOURS" };
-    if (!nightTargets(m, phase, me.id).some((p) => p.id === move.targetId)) return { error: "MF_TARGET" };
+    const skip = move.targetId === SKIP;
+    if (!skip && !nightTargets(m, phase, me.id).some((p) => p.id === move.targetId)) return { error: "MF_TARGET" };
     const night = m.night;
     if (phase === "mafia") {
       if (night.mafiaVotes[me.id] === move.targetId) return { state: m };
@@ -349,6 +363,7 @@ export function applyPlayerMove(m: MafiaMatch, playerId: string, move: PlayerMov
       // Seeing a role is instant, so the choice is final for the night.
       if (night.detectiveTargetId === move.targetId) return { state: m };
       if (night.detectiveTargetId !== null) return { error: "MF_LOCKED" };
+      if (skip) return { state: { ...m, night: { ...night, detectiveTargetId: SKIP }, lastActionAt: now } };
       const target = playerById(m, move.targetId)!;
       return {
         state: {
@@ -395,5 +410,40 @@ export function applyHostMove(m: MafiaMatch, move: HostMove, now: number): Engin
       // The host moves the table on from the role cards to the night (the intro can't be skipped).
       if (m.paused || m.phase !== "roleReveal") return { state: m };
       return { state: enter(m, "nightfall", now) };
+    case "skipDiscussion":
+      // «سكّب النقاش!»: straight to the vote, with its full timer. A repeat lands on the vote: no-op.
+      if (m.phase !== "discussion") return { state: m };
+      return { state: enter({ ...m, votes: {} }, "voting", now) };
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Public reveal                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The match as the room may know it at `now`. The night (or the vote) is
+ * resolved when the dawn (or the verdict) starts, but its result stays
+ * private until the TV's reveal moment: until then the victim is still in
+ * the game, there is no result and no winner, and the deadline is the
+ * reveal moment itself (the real one would differ by outcome).
+ */
+export function announced(m: MafiaMatch, now: number): MafiaMatch {
+  if (m.phase !== "dawn" && m.phase !== "verdict") return m;
+  const total = (phaseSeconds(m) ?? 0) * 1000;
+  const afterReveal = total - (m.phase === "dawn" ? DAWN_REVEAL_MS : VERDICT_REVEAL_MS);
+  const remaining = m.paused ? m.paused.remaining : m.deadline === null ? null : m.deadline - now;
+  if (remaining === null || remaining <= afterReveal) return m;
+
+  const outId = m.phase === "dawn" ? (m.dawn?.outcome === "killed" ? m.dawn.victimId : null) : m.verdict?.outcome === "eliminated" ? m.verdict.targetId : null;
+  return {
+    ...m,
+    players: m.players.map((p) => (p.id === outId ? { ...p, alive: true, out: null } : p)),
+    dawn: m.phase === "dawn" ? null : m.dawn,
+    verdict: m.phase === "verdict" ? null : m.verdict,
+    winner: null,
+    timeline: m.timeline.slice(0, -1),
+    deadline: m.deadline === null ? null : m.deadline - afterReveal,
+    paused: m.paused ? { remaining: remaining - afterReveal } : null,
+  };
 }

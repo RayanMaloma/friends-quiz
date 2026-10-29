@@ -8,9 +8,12 @@
  * - A phone gets, on top of that, only its own secrets: its role, its mafia
  *   teammates (and their picks during the mafia phase), its own
  *   investigations, its own protections and its own vote.
+ * - Nobody (the victim's own phone included) learns who died at night or
+ *   was voted out before the TV announces it: views are built from
+ *   `announced(match, now)`, never from the resolved match.
  */
 import type { Snapshot } from "@/lib/types";
-import { checkWinner, nightTargets, playerById, voters } from "./engine";
+import { announced, checkWinner, nightTargets, playerById, voters } from "./engine";
 import { MAX_PLAYERS, MIN_PLAYERS, roleCounts, type Role, type Team } from "./rules";
 import type { DawnResult, MafiaMatch, Phase, TimelineEntry, Verdict } from "./types";
 
@@ -71,7 +74,7 @@ export interface MafiaTask {
   choice: string | null;
   /** Mafia: what each teammate picked so far. */
   team: { playerId: string; name: string; targetId: string | null }[];
-  /** Detective: the choice is final once made. */
+  /** Detective: the choice (a target or "skip") is final once made. */
   locked: boolean;
 }
 
@@ -82,7 +85,7 @@ export interface MafiaSecret {
   /** Mafia only. */
   teammates: { id: string; name: string; alive: boolean }[];
   task: MafiaTask | null;
-  /** Detective only. */
+  /** Detective only (kept after the phase moves on, for the rest of the match). */
   investigations: { round: number; targetId: string; name: string; role: Role }[];
 }
 
@@ -116,6 +119,7 @@ export function mafiaMatchOf(snapshot: Snapshot): MafiaMatch | null {
   return m && typeof m === "object" && (m as MafiaMatch).v === 1 ? (m as MafiaMatch) : null;
 }
 
+/** `m` must already be `announced` (see buildMafia*View). */
 export function publicMatch(m: MafiaMatch): MafiaPublicMatch {
   const over = m.phase === "gameOver";
   const living = voters(m);
@@ -199,6 +203,9 @@ function secretFor(m: MafiaMatch, playerId: string): MafiaSecret | null {
   };
 }
 
+/** The match as the room may know it at the snapshot's time. */
+const announcedAt = (snapshot: Snapshot, m: MafiaMatch | null) => (m ? announced(m, Date.parse(snapshot.now)) : null);
+
 function base(snapshot: Snapshot, m: MafiaMatch | null) {
   const s = snapshot.session;
   return {
@@ -216,11 +223,12 @@ function base(snapshot: Snapshot, m: MafiaMatch | null) {
 }
 
 /** `m` is the match after `advance` (it may be newer than the snapshot's). */
-export function buildMafiaHostView(snapshot: Snapshot, m: MafiaMatch | null): MafiaHostView {
-  return { ...base(snapshot, m), role: "host" };
+export function buildMafiaHostView(snapshot: Snapshot, match: MafiaMatch | null): MafiaHostView {
+  return { ...base(snapshot, announcedAt(snapshot, match)), role: "host" };
 }
 
-export function buildMafiaGuestView(snapshot: Snapshot, m: MafiaMatch | null, playerId: string): MafiaGuestView | null {
+export function buildMafiaGuestView(snapshot: Snapshot, match: MafiaMatch | null, playerId: string): MafiaGuestView | null {
+  const m = announcedAt(snapshot, match);
   const player = snapshot.players.find((p) => p.id === playerId);
   if (!player) return null;
   const seated = !!m?.players.some((p) => p.id === playerId);

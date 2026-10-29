@@ -2,28 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { MafiaSound } from "./sound";
-import { Narrator, STATIC_LINES, type NarratorSource, type VoiceChoice, type VoiceSession } from "./narrator";
-
-const KEY = "fq:mafia:audio";
-
-interface Settings {
-  volume: number;
-  muted: boolean;
-  voice: VoiceChoice;
-}
-
-const DEFAULTS: Settings = { volume: 0.8, muted: false, voice: "auto" };
+import { Narrator, STATIC_LINES, type NarratorSource, type VoiceSession } from "./narrator";
+import { AUDIO_DEFAULTS as DEFAULTS, AUDIO_SETTINGS_KEY as KEY, parseAudioSettings, type AudioSettings as Settings } from "./settings";
 
 function readSettings(): Settings {
   try {
-    const raw = window.localStorage.getItem(KEY);
-    const v = raw ? JSON.parse(raw) : null;
-    if (!v || typeof v !== "object") return DEFAULTS;
-    return {
-      volume: typeof v.volume === "number" ? Math.min(1, Math.max(0, v.volume)) : DEFAULTS.volume,
-      muted: v.muted === true,
-      voice: typeof v.voice === "string" && v.voice ? v.voice : "auto",
-    };
+    return parseAudioSettings(window.localStorage.getItem(KEY));
   } catch {
     return DEFAULTS;
   }
@@ -80,8 +64,9 @@ export function MafiaAudioProvider({ session, children }: { session: VoiceSessio
   }, [narrator, sound]);
 
   useEffect(() => {
-    sound.setVolume(settings.volume, settings.muted);
-    narrator.setVolume(settings.volume, settings.muted);
+    // Two channels, each with its own level; the mute silences both and keeps the levels.
+    sound.setVolume(settings.themeVolume, settings.muted);
+    narrator.setVolume(settings.narratorVolume, settings.muted);
     narrator.setChoice(settings.voice);
     if (settings.muted) narrator.stop();
   }, [settings, sound, narrator]);

@@ -1,8 +1,7 @@
 import { SECONDS } from "@/lib/mafia/rules";
 
-/** Choreography inside the dawn and verdict phases (ms after the phase starts). */
-export const DAWN_REVEAL_MS = 5600;
-export const VERDICT_REVEAL_MS = 3800;
+/** Choreography inside the dawn and verdict phases (ms after the phase starts): set by the server's public reveal. */
+export { DAWN_REVEAL_MS, VERDICT_REVEAL_MS } from "@/lib/mafia/rules";
 
 /**
  * The 10-second opening sequence (the server's `intro` phase), in ms from its start:

@@ -14,6 +14,7 @@
  * Every source plays through one shared <audio> element (or the speech
  * engine), and a new line always stops the previous one: lines never
  * overlap. Playback never gates the game: phases follow the server clock.
+ * The narrator is its own sound channel (صوت الراوي), with its own volume.
  */
 import { SCRIPT, type Cue } from "@/lib/mafia/narration";
 
@@ -49,7 +50,7 @@ export class Narrator {
   private clips = new Map<string, Promise<string | null>>();
   private voices: SpeechSynthesisVoice[] = [];
   private choice: VoiceChoice = "auto";
-  private volume = 0.8;
+  private volume = 1;
   private muted = false;
   /** Bumped by every speak/stop: a line still loading when this changes is dropped. */
   private seq = 0;
@@ -57,6 +58,8 @@ export class Narrator {
   /** A line is playing now, and who waits for it to end. */
   private busy = false;
   private idle: (() => void)[] = [];
+  /** Settles the line that is playing, when a newer line (or stop) cuts it off. */
+  private cut: (() => void) | null = null;
   /** Bumped by every speak request: a line still waiting its turn is dropped when a newer one arrives. */
   private requests = 0;
   private listeners = new Set<() => void>();
@@ -153,10 +156,15 @@ export class Narrator {
     this.emit();
   }
 
+  /** The narrator channel's level (0–1) and the global mute. A line that is playing follows at once. */
   setVolume(volume: number, muted: boolean) {
-    this.volume = volume;
+    this.volume = Math.min(1, Math.max(0, volume));
     this.muted = muted;
-    if (this.player) this.player.volume = muted ? 0 : volume;
+    if (this.player) this.player.volume = this.level;
+  }
+
+  private get level() {
+    return this.muted ? 0 : this.volume;
   }
 
   private ttsVoice(): SpeechSynthesisVoice | null {
@@ -236,6 +244,8 @@ export class Narrator {
 
   stop() {
     this.seq++;
+    this.cut?.();
+    this.cut = null;
     if (this.player && !this.player.paused) this.player.pause();
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     this.setSpeaking(false);
@@ -277,14 +287,16 @@ export class Narrator {
     if (!el) return Promise.resolve();
     return new Promise((resolve) => {
       const done = () => {
-        el.onended = el.onerror = null;
+        if (this.cut === done) this.cut = null;
+        if (el.onended === done) el.onended = el.onerror = null;
         if (seq === this.seq) this.setSpeaking(false);
         resolve();
       };
+      this.cut = done;
       el.onended = done;
       el.onerror = done;
       el.src = url;
-      el.volume = this.volume;
+      el.volume = this.level;
       this.setSpeaking(true);
       el.play().then(
         () => {
@@ -309,14 +321,16 @@ export class Narrator {
       // A little slower and lower than default: calmer, more dramatic.
       u.rate = 0.9;
       u.pitch = 0.85;
-      u.volume = this.volume;
+      u.volume = this.level;
       let finished = false;
       const done = () => {
         if (finished) return;
         finished = true;
+        if (this.cut === done) this.cut = null;
         if (seq === this.seq) this.setSpeaking(false);
         resolve();
       };
+      this.cut = done;
       u.onend = done;
       u.onerror = done;
       this.setSpeaking(true);
