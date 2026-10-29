@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "provision:super-admin": "node scripts/provision-super-admin.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

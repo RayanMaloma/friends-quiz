@@ -11,8 +11,10 @@
  *   where `elapsed` excludes pauses and `duration` is read live from the
  *   settings, so the host can shorten or lengthen the running phase.
  * - A round is scored exactly once, by the voting → reveal transition.
+ * - Questions come from the room's own pool (passed in by the server): the
+ *   host's questions in a public room, the Ahaji set in the private one. The
+ *   match keeps the picked questions, so nothing else is needed to show them.
  */
-import { QUESTION_BANK } from "./questions";
 
 /* ------------------------------------------------------------------ */
 /* Rules                                                               */
@@ -26,11 +28,21 @@ export const DEFAULT_ANSWER_SECONDS = 60;
 export const DEFAULT_VOTE_SECONDS = 30;
 export const MAX_TIMER_SECONDS = 3600;
 export const MAX_ANSWER_LENGTH = 200;
+/** A host's own question set (public rooms). */
+export const MAX_QUESTIONS = 100;
+export const MAX_QUESTION_LENGTH = 200;
+/** Size of the private Ahaji question set (its text stays on the server: lib/invent/questions.ts). */
+export const AHAJI_QUESTION_COUNT = 46;
 export const REVEAL_MS = 10000;
 export const LEADERBOARD_MS = 8000;
 
 /** A round opens straight into answering: the question and the answer box arrive together. */
 export type Phase = "answering" | "voting" | "reveal" | "leaderboard" | "final";
+
+export interface InventQuestion {
+  id: string;
+  text: string;
+}
 
 export interface InventSettings {
   rounds: number;
@@ -67,6 +79,8 @@ export interface InventGame {
   /** New for every match (a rematch is a new id). */
   id: string;
   questionIds: string[];
+  /** The picked questions, in play order (same order as questionIds). Missing in matches saved before pools existed. */
+  questions?: InventQuestion[];
   /** Seated when the match started, in join order. */
   players: { id: string; name: string }[];
   scores: Record<string, number>;
@@ -136,8 +150,30 @@ export const DEFAULT_SETTINGS: InventSettings = {
 export const isTimerSeconds = (v: unknown): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_TIMER_SECONDS;
 
-export const isRoundCount = (v: unknown): v is number =>
-  typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= QUESTION_BANK.length;
+/** A match length the room's pool can fill. */
+export const isRoundCount = (v: unknown, poolSize: number): v is number =>
+  typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= poolSize;
+
+/**
+ * A host's question list: trimmed, control characters and repeated spaces
+ * removed, empty lines and duplicates dropped. null when it can't be played
+ * (none left, too many, or one too long).
+ */
+export function cleanQuestions(raw: unknown): InventQuestion[] | null {
+  if (!Array.isArray(raw) || raw.length > MAX_QUESTIONS * 2) return null;
+  const seen = new Set<string>();
+  const out: InventQuestion[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") return null;
+    const text = item.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    if ([...text].length > MAX_QUESTION_LENGTH) return null;
+    if (seen.has(text)) continue;
+    seen.add(text);
+    out.push({ id: `c${String(out.length + 1).padStart(3, "0")}`, text });
+  }
+  return out.length >= 1 && out.length <= MAX_QUESTIONS ? out : null;
+}
 
 export function newDoc(settings: InventSettings = DEFAULT_SETTINGS): InventDoc {
   return { v: 1, settings: { ...settings }, game: null };
@@ -307,20 +343,25 @@ export function setupIssue(playerCount: number): string | null {
   return null;
 }
 
-/** A fresh match: new random questions, scores at zero. */
+/** A fresh match: new random questions from the room's pool, scores at zero. */
 export function startGame(
   doc: InventDoc,
   players: { id: string; name: string }[],
   now: number,
+  pool: readonly InventQuestion[],
   rng: Rng = secureRandom,
 ): EngineResult {
   const issue = setupIssue(players.length);
   if (issue) return { error: issue };
-  const rounds = Math.min(doc.settings.rounds, QUESTION_BANK.length);
-  const questionIds = shuffle(QUESTION_BANK.map((q) => q.id), rng).slice(0, rounds);
+  if (pool.length === 0) return { error: "NO_QUESTIONS" };
+  // Never more rounds than questions, even if the pool shrank since the setting was saved.
+  const rounds = Math.min(doc.settings.rounds, pool.length);
+  const questions = shuffle(pool, rng).slice(0, rounds).map((q) => ({ id: q.id, text: q.text }));
+  const questionIds = questions.map((q) => q.id);
   const game: InventGame = {
     id: randomId(rng),
     questionIds,
+    questions,
     players: players.map((p) => ({ id: p.id, name: p.name })),
     scores: Object.fromEntries(players.map((p) => [p.id, 0])),
     phase: "answering",
@@ -332,12 +373,12 @@ export function startGame(
   return { doc: { ...doc, game } };
 }
 
-/** Lobby only: the match length and timers. */
-export function applySettings(doc: InventDoc, patch: Partial<InventSettings>): EngineResult {
+/** Lobby only: the match length (at most the pool size) and timers. */
+export function applySettings(doc: InventDoc, patch: Partial<InventSettings>, poolSize: number): EngineResult {
   if (doc.game) return { error: "GAME_ALREADY_STARTED" };
   const settings = { ...doc.settings };
   if (patch.rounds !== undefined) {
-    if (!isRoundCount(patch.rounds)) return { error: "BAD_REQUEST" };
+    if (!isRoundCount(patch.rounds, poolSize)) return { error: "BAD_REQUEST" };
     settings.rounds = patch.rounds;
   }
   if (patch.answerSeconds !== undefined) {

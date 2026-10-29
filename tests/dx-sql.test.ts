@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import type { PGlite } from "@electric-sql/pglite";
+import { migratedDb } from "./helpers/db";
 import { newDxDoc } from "@/lib/dx/doc";
 
 // Deduction sessions on the real migrations (in-memory Postgres): kind
@@ -21,13 +20,9 @@ async function call<T = R>(fn: string, params: Record<string, unknown>): Promise
   return res.rows[0].result;
 }
 
-const MIGRATIONS_DIR = path.join(__dirname, "..", "supabase/migrations");
 
 beforeAll(async () => {
-  pg = new PGlite();
-  for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()) {
-    await pg.exec(readFileSync(path.join(MIGRATIONS_DIR, f), "utf8"));
-  }
+  pg = await migratedDb();
 });
 
 function sessionConfig() {

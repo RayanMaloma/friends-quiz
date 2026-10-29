@@ -78,7 +78,7 @@ export function InventHost({ creds }: { creds: HostCreds }) {
         <div className="iv-join-form">
           <p className="iv-wordmark text-4xl">اخترع إجابتك</p>
           <p className="iv-error">{errorMessage(fatalError)}</p>
-          <Link href="/host" className="iv-btn iv-btn-gold">قائمة الألعاب</Link>
+          <Link href="/games" className="iv-btn iv-btn-gold">قائمة الألعاب</Link>
         </div>
       </div>
     );
@@ -96,7 +96,7 @@ export function InventHost({ creds }: { creds: HostCreds }) {
         <div className="iv-join-form">
           <p className="iv-wordmark text-4xl">اخترع إجابتك</p>
           <p className="iv-mute font-bold">الغرفة انقفلت.</p>
-          <Link href="/host" className="iv-btn iv-btn-gold">قائمة الألعاب</Link>
+          <Link href="/games" className="iv-btn iv-btn-gold">قائمة الألعاب</Link>
         </div>
       </div>
     );
@@ -528,7 +528,7 @@ function Final({ game, run, view }: { game: InventPublicGame; run: Run; view: In
     setBusy(true);
     const ok = await run(action);
     setBusy(false);
-    if (ok && action === "close") router.push("/host");
+    if (ok && action === "close") router.push("/games");
   };
   return (
     <section className="iv-ranking">

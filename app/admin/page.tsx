@@ -10,7 +10,8 @@ import { TEMPLATES, type TemplateId } from "@/lib/game/doc";
 import { ACCENT_HEX } from "@/lib/colors";
 import { peopleLabel, questionsLabel } from "@/lib/format";
 import { Spinner } from "@/components/ui";
-import { Modal, Segmented, StatusPill } from "@/components/admin/ui";
+import { Modal, Segmented, StatusPill, VisibilityToggle } from "@/components/admin/ui";
+import type { CatalogEntry, Visibility } from "@/lib/catalog";
 
 type Filter = "active" | "published" | "draft" | "archived";
 
@@ -22,6 +23,9 @@ const DX_TEMPLATES = [
 export default function AdminGamesPage() {
   const router = useRouter();
   const [games, setGames] = useState<GameSummary[] | null>(null);
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [ahaji, setAhaji] = useState<{ id: string; text: string }[] | null>(null);
+  const [copied, setCopied] = useState<{ title: string; removed: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
   const [showNew, setShowNew] = useState(false);
@@ -29,9 +33,13 @@ export default function AdminGamesPage() {
   const importInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const res = await api<{ games: GameSummary[] }>("/api/admin", { action: "listGames" });
+    const [res, cat] = await Promise.all([
+      api<{ games: GameSummary[] }>("/api/admin", { action: "listGames" }),
+      api<{ catalog: CatalogEntry[] }>("/api/admin", { action: "catalog" }),
+    ]);
     if (res.ok) setGames(res.games);
     else setError(errorMessage(res.error));
+    if (cat.ok) setCatalog(cat.catalog);
   }, []);
 
   useEffect(() => {
@@ -57,6 +65,50 @@ export default function AdminGamesPage() {
     setBusy(null);
     if (!res.ok) setError(errorMessage(res.error));
     await load();
+  }
+
+  async function setVisibility(key: string, visibility: Visibility) {
+    setBusy(key);
+    const res = await api("/api/admin", { action: "setVisibility", key, visibility });
+    setBusy(null);
+    if (!res.ok) setError(errorMessage(res.error));
+    await load();
+  }
+
+  async function makePublicCopy(id: string, title: string) {
+    const name = window.prompt("اسم النسخة العامة", title);
+    if (!name) return;
+    setBusy(id);
+    setError(null);
+    const res = await api<{ game: GameRecord; removedNames: string[] }>("/api/admin", { action: "dxPublicCopy", id, title: name });
+    setBusy(null);
+    if (!res.ok) {
+      setError(errorMessage(res.error));
+      return;
+    }
+    setCopied({ title: name, removed: res.removedNames });
+    await load();
+  }
+
+  async function playBuiltin(key: string) {
+    if (key === "invent") {
+      router.push("/invent/new");
+      return;
+    }
+    setBusy(key);
+    setError(null);
+    const kind = key === "mafia" ? "mafia" : "invent";
+    const res = await api<{ sessionId: string; code: string; hostToken: string }>(`/api/${kind}`, {
+      action: "create",
+      ...(key === "invent_ahaji" ? { questionSet: "ahaji" } : {}),
+    });
+    setBusy(null);
+    if (!res.ok) {
+      setError(errorMessage(res.error));
+      return;
+    }
+    hostStore.save({ sessionId: res.sessionId, code: res.code, hostToken: res.hostToken });
+    router.push(`/${kind}/host/${res.sessionId}`);
   }
 
   async function play(id: string, dx: boolean) {
@@ -92,7 +144,7 @@ export default function AdminGamesPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-4xl">ألعابك 🎮</h1>
+        <h1 className="font-display text-4xl">الألعاب</h1>
         <div className="flex gap-2">
           <button onClick={() => importInput.current?.click()} className="abtn">
             استيراد
@@ -114,6 +166,46 @@ export default function AdminGamesPage() {
       </div>
 
       {error && <p className="panel-sm bg-pink px-3 py-2 font-bold text-white">{error}</p>}
+
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {catalog
+          .filter((c) => c.builtin)
+          .map((c) => (
+            <li key={c.key} className="panel flex flex-col gap-3 bg-card p-4">
+              <div className="flex items-start gap-3">
+                <span className="panel-sm grid size-14 shrink-0 -rotate-6 place-items-center text-3xl" style={{ background: ACCENT_HEX[c.accent] }}>
+                  {c.emoji}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-2xl leading-tight">{c.title}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-mute">
+                    <VisibilityToggle value={c.visibility} disabled={busy === c.key} onChange={(v) => setVisibility(c.key, v)} />
+                    <span>
+                      {c.minPlayers}–{c.maxPlayers} لاعب
+                    </span>
+                    {c.questionCount !== null && <span>· {c.questionCount} سؤال</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {c.key === "invent_ahaji" && (
+                  <button
+                    onClick={async () => {
+                      const res = await api<{ questions: { id: string; text: string }[] }>("/api/admin", { action: "inventAhajiQuestions" });
+                      if (res.ok) setAhaji(res.questions);
+                    }}
+                    className="abtn flex-1"
+                  >
+                    الأسئلة
+                  </button>
+                )}
+                <button onClick={() => playBuiltin(c.key)} disabled={busy === c.key} className="abtn abtn-primary flex-1">
+                  {busy === c.key ? <Spinner className="size-4" /> : "📺"} تشغيل
+                </button>
+              </div>
+            </li>
+          ))}
+      </ul>
 
       {games === null ? (
         <Spinner className="mx-auto mt-10 size-8 text-ink" />
@@ -137,11 +229,37 @@ export default function AdminGamesPage() {
           ) : (
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visible.map((g) => (
-                <GameCard key={g.id} game={g} busy={busy === g.id} onPlay={() => play(g.id, g.kind === "deduction")} onAct={(a, x) => act(g.id, a, x)} />
+                <GameCard
+                  key={g.id}
+                  game={g}
+                  busy={busy === g.id}
+                  visibility={catalog.find((c) => c.key === g.id)?.visibility ?? "private"}
+                  onVisibility={(v) => setVisibility(g.id, v)}
+                  onPublicCopy={() => makePublicCopy(g.id, g.title)}
+                  onPlay={() => play(g.id, g.kind === "deduction")}
+                  onAct={(a, x) => act(g.id, a, x)}
+                />
               ))}
             </ul>
           )}
         </>
+      )}
+
+      {ahaji && (
+        <Modal title={`أسئلة أحاجي (${ahaji.length})`} onClose={() => setAhaji(null)} wide>
+          <ol className="flex list-decimal flex-col gap-1.5 ps-6 text-sm font-bold">
+            {ahaji.map((q) => (
+              <li key={q.id}>{q.text}</li>
+            ))}
+          </ol>
+        </Modal>
+      )}
+
+      {copied && (
+        <Modal title={`«${copied.title}» جاهزة 🌐`} onClose={() => setCopied(null)}>
+          <p className="font-bold">نفس القوانين، بدون أسماء أو صور.</p>
+          {copied.removed.length > 0 && <p className="text-sm font-bold text-mute">انشالت: {copied.removed.join("، ")}</p>}
+        </Modal>
       )}
 
       {showNew && (
@@ -207,11 +325,17 @@ function EmptyState({ busy, onLegacy, onNew }: { busy: string | null; onLegacy: 
 function GameCard({
   game: g,
   busy,
+  visibility,
+  onVisibility,
+  onPublicCopy,
   onPlay,
   onAct,
 }: {
   game: GameSummary;
   busy: boolean;
+  visibility: Visibility;
+  onVisibility: (v: Visibility) => void;
+  onPublicCopy: () => void;
   onPlay: () => void;
   onAct: (action: string, extra?: Record<string, unknown>) => void;
 }) {
@@ -234,6 +358,7 @@ function GameCard({
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-mute">
             <StatusPill status={g.status} />
+            {g.status !== "archived" && <VisibilityToggle value={visibility} disabled={busy} onChange={onVisibility} />}
             <span>{dx ? `أدوار سرّية · ${g.minPlayers ?? "?"}–${g.maxPlayers ?? "?"} لاعبين` : questionsLabel(g.questionCount)}</span>
             {!dx && g.peopleCount > 0 && <span>· {peopleLabel(g.peopleCount)}</span>}
             {g.sessionCount > 0 && <span>· لُعبت {g.sessionCount} مرة</span>}
@@ -247,6 +372,7 @@ function GameCard({
       {menu && (
         <div className="panel-sm absolute end-4 top-16 z-10 flex min-w-40 flex-col bg-card py-1" onMouseLeave={() => setMenu(false)}>
           <MenuItem onClick={() => onAct(dx ? "dxDuplicate" : "duplicateGame")}>نسخ اللعبة</MenuItem>
+          {dx && <MenuItem onClick={onPublicCopy}>نسخة عامة (بدون أسماء وصور)</MenuItem>}
           {g.status === "archived" ? (
             <MenuItem onClick={() => onAct("setStatus", { status: "draft" })}>استرجاع من الأرشيف</MenuItem>
           ) : (

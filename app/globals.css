@@ -499,3 +499,93 @@ body {
 .ainput:focus { box-shadow: 0 0 0 3px rgb(255 199 44 / 0.6); }
 textarea.ainput { height: auto; padding: 0.6rem 0.8rem; line-height: 1.7; }
 }
+
+/* ---------------------------------------------------------------------------
+   Super admin dashboard — dark. The palette tokens are redefined inside the
+   shell, so every dashboard surface (panels, buttons, inputs, text) flips
+   with it; the party screens keep the light theme.
+   --------------------------------------------------------------------------- */
+html:has(.admin-dark),
+body:has(.admin-dark) {
+  background: #0f1116;
+}
+.admin-dark {
+  --color-cream: #0f1116;
+  --color-cream-2: #1d2029;
+  --color-card: #171a21;
+  --color-ink: #ece8f6;
+  --color-mute: #9b95ad;
+  --admin-line: rgb(236 232 246 / 0.1);
+  --admin-line-hi: rgb(236 232 246 / 0.2);
+  background: var(--color-cream);
+  color: var(--color-ink);
+  color-scheme: dark;
+}
+.admin-dark .panel,
+.admin-dark .panel-sm,
+.admin-dark .abtn,
+.admin-dark .ainput {
+  border-color: var(--admin-line-hi);
+  box-shadow: none;
+}
+.admin-dark .panel { border-color: var(--admin-line); }
+.admin-dark .abtn:hover:not(:disabled) { background: var(--color-cream-2); }
+.admin-dark .abtn-primary,
+.admin-dark .abtn-go,
+.admin-dark .bg-sun,
+.admin-dark .bg-mint { color: #17121f; border-color: transparent; }
+.admin-dark .abtn-primary:hover:not(:disabled) { background: #ffd451; }
+.admin-dark .abtn-go:hover:not(:disabled) { background: #3fd394; }
+.admin-dark .abtn-quiet { border-color: transparent; }
+.admin-dark .ainput { background: #0c0e12; }
+.admin-dark .ainput:focus { box-shadow: 0 0 0 3px rgb(255 199 44 / 0.35); }
+.admin-dark .ainput::placeholder { color: rgb(155 149 173 / 0.7); }
+
+.admin-side {
+  background: #12141a;
+  border-bottom: 1px solid var(--admin-line);
+}
+@media (min-width: 768px) {
+  .admin-side { border-bottom: 0; border-inline-end: 1px solid var(--admin-line); }
+}
+.admin-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  height: 2.4rem;
+  padding: 0 0.75rem;
+  border-radius: 0.7rem;
+  font-weight: 800;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  color: var(--color-ink);
+  transition: background-color 120ms ease;
+}
+.admin-nav:hover { background: var(--color-cream-2); }
+.admin-nav-on { background: var(--color-sun); color: #17121f; }
+.admin-nav-on:hover { background: #ffd451; }
+.admin-alert { border-radius: 0.75rem; background: rgb(255 79 139 / 0.14); border: 1px solid rgb(255 79 139 / 0.45); }
+.admin-note { border-radius: 0.75rem; background: rgb(255 199 44 / 0.08); border: 1px solid rgb(255 199 44 / 0.3); }
+
+/* Activity tables */
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.admin-table th {
+  position: sticky;
+  top: 0;
+  background: var(--color-card);
+  color: var(--color-mute);
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-align: start;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--admin-line-hi);
+  white-space: nowrap;
+}
+.admin-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--admin-line);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.admin-table tbody tr:hover { background: var(--color-cream-2); }
+.admin-table tbody tr[data-clickable] { cursor: pointer; }

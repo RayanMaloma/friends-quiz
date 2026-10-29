@@ -178,7 +178,7 @@ function Table({ view, game }: { view: DxHostView; game: GameConfig }) {
       <div className="page">
         <ResultsBody s={s} />
         <div className="results-actions">
-          <Link className="dbtn dbtn-primary dbtn-lg" href="/host"><span>لعبة جديدة</span></Link>
+          <Link className="dbtn dbtn-primary dbtn-lg" href="/games"><span>لعبة جديدة</span></Link>
         </div>
       </div>
     );

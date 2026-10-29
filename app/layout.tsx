@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cairo, Lalezar } from "next/font/google";
 import "./globals.css";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/brand";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -16,8 +17,11 @@ const lalezar = Lalezar({
 });
 
 export const metadata: Metadata = {
-  title: "ألعاب الشلّة",
-  description: "ألعاب جماعية للشلة: التلفزيون يعرض والجوالات تجاوب",
+  title: { default: SITE_NAME, template: `%s — ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: { title: SITE_NAME, description: SITE_DESCRIPTION, siteName: SITE_NAME, locale: "ar_SA", type: "website" },
+  twitter: { card: "summary", title: SITE_NAME, description: SITE_DESCRIPTION },
 };
 
 export const viewport: Viewport = {

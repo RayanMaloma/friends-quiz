@@ -172,6 +172,32 @@ export function Modal({
   );
 }
 
+/** Public (any signed-in user can open a room) or private (super admin only). */
+export function VisibilityToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: "public" | "private";
+  onChange: (v: "public" | "private") => void;
+  disabled?: boolean;
+}) {
+  const pub = value === "public";
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onChange(pub ? "private" : "public")}
+      title={pub ? "عامة: تظهر لكل المستخدمين" : "خاصة: لك فقط"}
+      className={`inline-flex h-7 items-center gap-1 rounded-full border-2 px-2.5 text-xs font-black transition-colors disabled:opacity-50 ${
+        pub ? "border-mint bg-mint/15 text-mint" : "border-mute/40 text-mute"
+      }`}
+    >
+      {pub ? "🌐 عامة" : "🔒 خاصة"}
+    </button>
+  );
+}
+
 export function StatusPill({ status }: { status: "draft" | "published" | "archived" }) {
   const map = {
     draft: { label: "مسودة", cls: "bg-cream-2" },

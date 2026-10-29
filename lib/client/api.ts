@@ -5,7 +5,7 @@ export type ApiResult<T> =
 const TIMEOUT_MS = 10000;
 
 export async function api<T = Record<string, unknown>>(
-  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia" | "/api/invent",
+  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia" | "/api/invent" | "/api/auth" | "/api/catalog",
   body: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
   const controller = new AbortController();
@@ -84,6 +84,15 @@ const MESSAGES: Record<string, string> = {
   IV_VOTED: "صوّتت خلاص",
   IV_OWN_ANSWER: "ما تقدر تصوّت لإجابتك 😏",
   IV_BAD_CHOICE: "اختيار غير صالح",
+  AUTH_REQUIRED: "سجّل دخولك أول",
+  INVALID_CREDENTIALS: "البريد أو كلمة المرور غير صحيحة",
+  EMAIL_TAKEN: "هذا البريد مسجّل مسبقًا",
+  EMAIL_RESERVED: "هذا البريد غير متاح",
+  BAD_EMAIL: "البريد غير صحيح",
+  WEAK_PASSWORD: "كلمة المرور ٨ أحرف على الأقل",
+  SIGNUP_UNAVAILABLE: "التسجيل غير متاح حاليًا",
+  IV_QUESTIONS: "اكتب سؤال واحد على الأقل (لين ١٠٠ سؤال، كل سؤال لين ٢٠٠ حرف)",
+  IV_ROUNDS: "عدد الجولات أكثر من الأسئلة",
   IV_NOT_SEATED: "دخلت بعد ما بدأت الجولة، انتظر المباراة الجاية",
 };
 

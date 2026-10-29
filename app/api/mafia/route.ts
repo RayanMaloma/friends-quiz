@@ -2,7 +2,7 @@ import { rpc } from "@/lib/server/db";
 import { notifyGame } from "@/lib/server/broadcast";
 import { fail, getSnapshot, handleError, ok, readBody, type RpcResult } from "@/lib/server/game";
 import { hashToken, isTokenShaped, isUuid, newToken } from "@/lib/server/tokens";
-import { isAdmin } from "@/lib/server/admin";
+import { authorizeCreate, claimSession } from "@/lib/server/access";
 import { advance, applyHostMove, applyPlayerMove, createMatch } from "@/lib/mafia/engine";
 import {
   buildMafiaGuestView,
@@ -170,9 +170,10 @@ export async function POST(req: Request) {
     const body = await readBody(req);
     const action = body.action;
 
-    // Opening a room is an admin action (the TV laptop logs in once).
+    // Opening a room needs an account (Mafia is public by default).
     if (action === "create") {
-      if (!(await isAdmin())) return fail("ADMIN_REQUIRED", 401);
+      const auth = await authorizeCreate("mafia");
+      if ("error" in auth) return fail(auth.error, auth.status);
       const config: MafiaSessionConfig = {
         kind: "mafia",
         title: "المافيا",
@@ -187,6 +188,7 @@ export async function POST(req: Request) {
         p_config: config,
       });
       if (!res.ok) return fail(res.error);
+      await claimSession(res.session_id as string, auth.actor);
       return ok({ sessionId: res.session_id, code: res.code, hostToken });
     }
 

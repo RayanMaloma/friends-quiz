@@ -71,6 +71,13 @@ export async function rpc<T = Record<string, unknown>>(
 
 interface LocalDb {
   call<T>(fn: string, params: Record<string, unknown>): Promise<T>;
+  query<T>(sql: string, params: unknown[]): Promise<T[]>;
+}
+
+/** Local development only: raw SQL on the embedded database (the local auth provider uses it). */
+export async function localQuery<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+  if (isSupabaseConfigured || process.env.VERCEL) throw new ConfigError("localQuery is for the local database only");
+  return (await getLocalDb()).query<T>(sql, params);
 }
 
 function getLocalDb(): Promise<LocalDb> {
@@ -85,7 +92,9 @@ async function createLocalDb(): Promise<LocalDb> {
   const { PGlite } = await import("@electric-sql/pglite");
   const pg = new PGlite(localDataDir());
   await pg.waitReady;
-  // Apply every migration file once, in order (all files are also re-runnable).
+  // Stand-in for Supabase Auth (roles, auth.users, auth.uid()), then every
+  // migration file once, in order (all files are also re-runnable).
+  await pg.exec(await readFile(path.join(process.cwd(), "supabase", "local", "auth_stub.sql"), "utf8"));
   await pg.exec("create table if not exists _local_migrations (name text primary key)");
   const applied = new Set(
     (await pg.query<{ name: string }>("select name from _local_migrations")).rows.map((r) => r.name),
@@ -110,6 +119,9 @@ async function createLocalDb(): Promise<LocalDb> {
         values,
       );
       return res.rows[0].result;
+    },
+    async query<T>(sql: string, params: unknown[]) {
+      return (await pg.query<T>(sql, params)).rows;
     },
   };
 }

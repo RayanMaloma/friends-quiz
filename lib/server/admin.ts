@@ -1,9 +1,12 @@
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { currentUser } from "@/lib/server/auth/session";
 
 /**
- * Admin access = one shared password (ADMIN_PASSWORD). Logging in sets an
+ * Admin access = the super admin account (Supabase Auth, role in
+ * fq_profiles), or — kept for the existing GM setup — the shared dashboard
+ * password (ADMIN_PASSWORD). Logging in with the password sets an
  * httpOnly cookie "<expiry>.<hmac>" signed with a key derived from the
  * password, so changing the password signs everyone out.
  *
@@ -68,10 +71,19 @@ export function verifySessionValue(value: string | undefined): boolean {
   return safeEqual(mac, sign(expiry, password));
 }
 
-/** For Server Components and Route Handlers. */
-export async function isAdmin(): Promise<boolean> {
+/** The shared dashboard password cookie (GM access). */
+export async function hasAdminPasswordCookie(): Promise<boolean> {
   const store = await cookies();
   return verifySessionValue(store.get(ADMIN_COOKIE)?.value);
+}
+
+/**
+ * For Server Components and Route Handlers. Route Handlers pass
+ * `refresh: true` so an expired account session is renewed on the way.
+ */
+export async function isAdmin({ refresh = false }: { refresh?: boolean } = {}): Promise<boolean> {
+  if (await hasAdminPasswordCookie()) return true;
+  return (await currentUser({ refresh }))?.role === "super_admin";
 }
 
 export async function setAdminCookie() {

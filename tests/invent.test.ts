@@ -22,6 +22,8 @@ import {
 
 const PLAYERS = ["الدحام", "أبو قاسم", "العمري", "خالد", "مشعل", "ريان"].map((name, i) => ({ id: `p${i}`, name }));
 const ALL = new Set(PLAYERS.map((p) => p.id));
+/** The private Ahaji set (the engine takes any room pool). */
+const POOL = QUESTION_BANK;
 
 /** Deterministic rng for reproducible shuffles. */
 function seeded(seed = 1) {
@@ -41,7 +43,7 @@ const game = (d: InventDoc): InventGame => d.game!;
 
 /** A match started at t=0: rounds open straight into answering. */
 function answering(settings = DEFAULT_SETTINGS, players = PLAYERS) {
-  const d = ok(startGame(newDoc(settings), players, 0, seeded()));
+  const d = ok(startGame(newDoc(settings), players, 0, POOL, seeded()));
   expect(game(d).phase).toBe("answering");
   expect(remainingMs(d, 0)).toBe(settings.answerSeconds * 1000);
   return d;
@@ -82,37 +84,37 @@ const BANK_DIGEST = "ed01e049d142f53bcb02ff908c643cbaa3726fda79c5c98fd7feec38acc
 describe("match setup", () => {
   it("defaults to 36 questions, 60s answers, 30s votes", () => {
     expect(DEFAULT_SETTINGS).toEqual({ rounds: 36, answerSeconds: 60, voteSeconds: 30 });
-    const d = ok(startGame(newDoc(), PLAYERS, 0));
+    const d = ok(startGame(newDoc(), PLAYERS, 0, POOL));
     expect(game(d).questionIds).toHaveLength(36);
   });
 
   it("picks N random questions without repeats, for any N from 1 to 46", () => {
     for (const rounds of [1, 7, 36, 46]) {
-      const d = ok(startGame(newDoc({ ...DEFAULT_SETTINGS, rounds }), PLAYERS, 0));
+      const d = ok(startGame(newDoc({ ...DEFAULT_SETTINGS, rounds }), PLAYERS, 0, POOL));
       const ids = game(d).questionIds;
       expect(ids).toHaveLength(rounds);
       expect(new Set(ids).size).toBe(rounds);
       for (const id of ids) expect(questionById(id)).toBeDefined();
     }
-    const a = game(ok(startGame(newDoc(), PLAYERS, 0, seeded(1)))).questionIds;
-    const b = game(ok(startGame(newDoc(), PLAYERS, 0, seeded(2)))).questionIds;
+    const a = game(ok(startGame(newDoc(), PLAYERS, 0, POOL, seeded(1)))).questionIds;
+    const b = game(ok(startGame(newDoc(), PLAYERS, 0, POOL, seeded(2)))).questionIds;
     expect(a).not.toEqual(b);
   });
 
   it("validates settings: 1–46 questions, any positive whole seconds", () => {
-    expect(ok(applySettings(newDoc(), { rounds: 12, answerSeconds: 24, voteSeconds: 17 })).settings).toEqual({ rounds: 12, answerSeconds: 24, voteSeconds: 17 });
-    expect(applySettings(newDoc(), { rounds: 47 }).error).toBe("BAD_REQUEST");
-    expect(applySettings(newDoc(), { rounds: 0 }).error).toBe("BAD_REQUEST");
-    expect(applySettings(newDoc(), { answerSeconds: 0 }).error).toBe("BAD_REQUEST");
-    expect(applySettings(newDoc(), { voteSeconds: 2.5 }).error).toBe("BAD_REQUEST");
+    expect(ok(applySettings(newDoc(), { rounds: 12, answerSeconds: 24, voteSeconds: 17 }, POOL.length)).settings).toEqual({ rounds: 12, answerSeconds: 24, voteSeconds: 17 });
+    expect(applySettings(newDoc(), { rounds: 47 }, POOL.length).error).toBe("BAD_REQUEST");
+    expect(applySettings(newDoc(), { rounds: 0 }, POOL.length).error).toBe("BAD_REQUEST");
+    expect(applySettings(newDoc(), { answerSeconds: 0 }, POOL.length).error).toBe("BAD_REQUEST");
+    expect(applySettings(newDoc(), { voteSeconds: 2.5 }, POOL.length).error).toBe("BAD_REQUEST");
   });
 
   it("needs 3 to 16 players", () => {
-    expect(startGame(newDoc(), PLAYERS.slice(0, 2), 0).error).toMatch(/3/);
-    expect(startGame(newDoc(), PLAYERS.slice(0, 3), 0).doc).toBeDefined();
+    expect(startGame(newDoc(), PLAYERS.slice(0, 2), 0, POOL).error).toMatch(/3/);
+    expect(startGame(newDoc(), PLAYERS.slice(0, 3), 0, POOL).doc).toBeDefined();
     const many = Array.from({ length: 17 }, (_, i) => ({ id: `x${i}`, name: `x${i}` }));
-    expect(startGame(newDoc(), many, 0).error).toMatch(/16/);
-    expect(startGame(newDoc(), many.slice(0, 16), 0).doc).toBeDefined();
+    expect(startGame(newDoc(), many, 0, POOL).error).toMatch(/16/);
+    expect(startGame(newDoc(), many.slice(0, 16), 0, POOL).doc).toBeDefined();
   });
 });
 
@@ -136,7 +138,7 @@ describe("answers", () => {
   });
 
   it("opens the answer box the moment the round starts (no question-only intro)", () => {
-    const d = ok(startGame(newDoc(), PLAYERS, 0));
+    const d = ok(startGame(newDoc(), PLAYERS, 0, POOL));
     expect(game(d).phase).toBe("answering");
     expect(applyPlayerMove(d, "p0", { type: "answer", round: 0, text: "فورًا" }, 0).doc).toBeDefined();
   });
@@ -312,7 +314,7 @@ describe("timers", () => {
 
 describe("full match", () => {
   it("runs 3 rounds to the final results, accumulating scores", () => {
-    let d = ok(startGame(newDoc({ rounds: 3, answerSeconds: 20, voteSeconds: 10 }), PLAYERS.slice(0, 3), 0, seeded(5)));
+    let d = ok(startGame(newDoc({ rounds: 3, answerSeconds: 20, voteSeconds: 10 }), PLAYERS.slice(0, 3), 0, POOL, seeded(5)));
     const all = new Set(["p0", "p1", "p2"]);
     let t = 0;
     for (let round = 0; round < 3; round++) {
@@ -339,7 +341,7 @@ describe("full match", () => {
   });
 
   it("ties share the rank and the win", () => {
-    const g = { ...game(ok(startGame(newDoc(), PLAYERS.slice(0, 4), 0))), scores: { p0: 300, p1: 300, p2: 100, p3: 0 } };
+    const g = { ...game(ok(startGame(newDoc(), PLAYERS.slice(0, 4), 0, POOL))), scores: { p0: 300, p1: 300, p2: 100, p3: 0 } };
     expect(standings(g).map((r) => r.rank)).toEqual([1, 1, 3, 4]);
     expect(winners(g).sort()).toEqual(["p0", "p1"]);
     // Nobody scored: no winner (not a joint win for everyone).

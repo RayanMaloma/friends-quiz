@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     if (!isSameOriginRequest(req)) return fail("FORBIDDEN", 403);
-    if (!(await isAdmin())) return fail("ADMIN_REQUIRED", 401);
+    if (!(await isAdmin({ refresh: true }))) return fail("ADMIN_REQUIRED", 401);
     const length = Number(req.headers.get("content-length") ?? 0);
     if (length > MAX_UPLOAD_BYTES + 64 * 1024) return fail("FILE_TOO_LARGE", 413);
 

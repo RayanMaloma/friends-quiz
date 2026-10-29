@@ -9,6 +9,7 @@
  */
 import type { Snapshot } from "@/lib/types";
 import {
+  AHAJI_QUESTION_COUNT,
   answerOf,
   canVote,
   isPaused,
@@ -21,12 +22,11 @@ import {
   standings,
   winners,
   type InventDoc,
+  type InventQuestion,
   type InventSettings,
   type Phase,
   type Standing,
 } from "./engine";
-import { QUESTION_BANK, questionById } from "./questions";
-
 /** game_sessions.config of a room. */
 export interface InventSessionConfig {
   kind: "invent";
@@ -35,6 +35,18 @@ export interface InventSessionConfig {
   accent: "sun";
   settings: { lateJoin: false; askPersonOnJoin: false };
   people: [];
+  /**
+   * "custom": a public room playing its host's own `questions`.
+   * Missing / "ahaji": the private Ahaji set (rooms created before public rooms existed too).
+   */
+  questionSet?: "custom" | "ahaji";
+  questions?: InventQuestion[];
+}
+
+/** How many questions this room can draw from. */
+export function inventPoolSize(config: unknown): number {
+  const c = (config ?? {}) as Partial<InventSessionConfig>;
+  return c.questionSet === "custom" ? (Array.isArray(c.questions) ? c.questions.length : 0) : AHAJI_QUESTION_COUNT;
 }
 
 export type InventStatus = "LOBBY" | "PLAYING" | "FINISHED";
@@ -129,14 +141,13 @@ function publicGame(doc: InventDoc, now: number, active: Set<string>, viewerId: 
   const showCards = g.phase === "voting" || g.phase === "reveal";
   const seatedActive = g.players.filter((p) => active.has(p.id));
   const voters = seatedActive.filter((p) => canVote(r, p.id));
-  const question = questionById(r.questionId);
 
   return {
     matchId: g.id,
     phase: g.phase,
     roundIndex: r.index,
     totalRounds: g.questionIds.length,
-    question: { id: r.questionId, text: question?.text ?? "" },
+    question: { id: r.questionId, text: g.questions?.[r.index]?.text ?? "" },
     paused,
     timer:
       duration === null || remaining === null
@@ -180,7 +191,7 @@ function base(snapshot: Snapshot, doc: InventDoc, viewerId: string | null): Inve
     limits: {
       minPlayers: MIN_PLAYERS,
       maxPlayers: MAX_PLAYERS,
-      questions: QUESTION_BANK.length,
+      questions: inventPoolSize(s.config),
       maxSeconds: MAX_TIMER_SECONDS,
       maxAnswer: MAX_ANSWER_LENGTH,
     },

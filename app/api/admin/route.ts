@@ -20,6 +20,11 @@ import { isUuid } from "@/lib/server/tokens";
 import { normalizeGameDoc, TEMPLATES, validateGameDoc } from "@/lib/game/doc";
 import { buildLeaderboard } from "@/lib/game/views";
 import type { GameRecordStatus } from "@/lib/types";
+import { loadCatalog } from "@/lib/server/access";
+import { isBuiltinKey } from "@/lib/catalog";
+import { QUESTION_BANK } from "@/lib/invent/questions";
+import { publicCopy } from "@/lib/dx/publicCopy";
+import { summarizeSession } from "@/lib/server/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +54,7 @@ export async function POST(req: Request) {
       return ok({});
     }
 
-    if (!(await isAdmin())) return fail("ADMIN_REQUIRED", 401);
+    if (!(await isAdmin({ refresh: true }))) return fail("ADMIN_REQUIRED", 401);
 
     // ---- Admin only -------------------------------------------------------
     switch (action) {
@@ -208,6 +213,78 @@ export async function POST(req: Request) {
         const res = await saveDxGame(null, doc, null, "draft");
         if (!res.ok) return fail(res.error);
         return ok({ game: res.game });
+      }
+
+      // ---- Catalog: who can open what ---------------------------------
+      case "catalog":
+        return ok({ catalog: await loadCatalog() });
+
+      case "setVisibility": {
+        const key = String(body.key ?? "");
+        if (!isBuiltinKey(key) && !isUuid(key)) return fail("NOT_FOUND", 404);
+        if (body.visibility !== "public" && body.visibility !== "private") return fail("BAD_REQUEST");
+        const res = await rpc<RpcResult>("fq_admin_set_visibility", { p_key: key, p_visibility: body.visibility });
+        if (!res.ok) return fail(res.error, 404);
+        return ok({});
+      }
+
+      // The fixed Ahaji question set, read-only (its wording is approved and never edited here).
+      case "inventAhajiQuestions":
+        return ok({ questions: QUESTION_BANK });
+
+      // A public, group-neutral copy of a private hidden-role game (names and photos removed).
+      case "dxPublicCopy": {
+        if (!isUuid(body.id)) return fail("NOT_FOUND", 404);
+        const game = await getDxGame(body.id);
+        if (!game) return fail("NOT_FOUND", 404);
+        const title = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 60) : `${game.doc.title} (عامة)`;
+        const { doc: copy, removedNames } = publicCopy(game.doc, title);
+        const { doc, errors } = normalizeDxDoc(copy);
+        if (!doc) return Response.json({ ok: false, error: "DX_INVALID", errors }, { status: 400 });
+        const playable = validateDxDoc(doc).length === 0;
+        const res = await saveDxGame(null, doc, null, playable ? "published" : "draft");
+        if (!res.ok) return fail(res.error);
+        await rpc("fq_admin_set_visibility", { p_key: res.game.id, p_visibility: "public" });
+        return ok({ game: res.game, removedNames });
+      }
+
+      // ---- Activity ------------------------------------------------------
+      case "activityOverview":
+        return ok({ overview: await rpc("fq_admin_activity_overview", {}) });
+
+      case "listAccounts": {
+        const res = await rpc<{ ok: true; accounts: unknown[] }>("fq_admin_list_accounts", { p_limit: 500 });
+        return ok({ accounts: res.accounts });
+      }
+
+      case "listActivitySessions": {
+        const f = (body.filters ?? {}) as Record<string, unknown>;
+        const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "");
+        const to = day(f.to);
+        const filters = {
+          game_key: typeof f.gameKey === "string" && f.gameKey.length <= 64 ? f.gameKey : "",
+          state: ["lobby", "playing", "completed", "cancelled", "expired"].includes(String(f.state)) ? String(f.state) : "",
+          from: day(f.from),
+          // Inclusive end date.
+          to: to ? new Date(Date.parse(`${to}T00:00:00Z`) + 86400000).toISOString().slice(0, 10) : "",
+          owner: f.owner === "none" || isUuid(f.owner) ? String(f.owner) : "",
+        };
+        const res = await rpc<{ ok: true; sessions: unknown[] }>("fq_admin_list_activity_sessions", { p_filters: filters, p_limit: 500 });
+        return ok({ sessions: res.sessions });
+      }
+
+      case "sessionDetail": {
+        if (!isUuid(body.id)) return fail("NOT_FOUND", 404);
+        const res = await rpc<RpcResult>("fq_admin_session_detail", { p_id: body.id });
+        if (!res.ok) return fail(res.error, 404);
+        const detail = summarizeSession(res);
+        // Quiz scores are derived from the answers, never stored: compute the standings.
+        if (detail.kind === "quiz" && detail.state === "completed") {
+          const snapshot = await getSnapshot(body.id);
+          const top = snapshot ? buildLeaderboard(snapshot).filter((e) => e.rank === 1 && e.score > 0) : [];
+          if (top.length) detail.result = `الفائز: ${top.map((e) => e.name).join("، ")} (${top[0].score})`;
+        }
+        return ok({ detail });
       }
 
       case "listSessions": {

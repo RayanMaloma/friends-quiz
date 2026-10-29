@@ -2,7 +2,7 @@ import { rpc } from "@/lib/server/db";
 import { notifyGame } from "@/lib/server/broadcast";
 import { fail, getSnapshot, handleError, ok, readBody, type RpcResult } from "@/lib/server/game";
 import { hashToken, isTokenShaped, isUuid, newToken } from "@/lib/server/tokens";
-import { isAdmin } from "@/lib/server/admin";
+import { authorizeCreate, claimSession } from "@/lib/server/access";
 import { getGame } from "@/lib/server/games";
 import { buildRounds, buildSessionConfig } from "@/lib/game/rounds";
 import { buildHostView } from "@/lib/game/views";
@@ -16,10 +16,12 @@ export async function POST(req: Request) {
     const body = await readBody(req);
     const action = body.action;
 
-    // Starting a session of a game is an admin action (the TV laptop logs in once).
+    // Opening a room needs an account.
     if (action === "create") {
-      if (!(await isAdmin())) return fail("ADMIN_REQUIRED", 401);
       if (!isUuid(body.gameId)) return fail("GAME_MISSING", 404);
+      // Signed in, and the game is public (or the viewer is the super admin): private games read as missing.
+      const auth = await authorizeCreate(body.gameId);
+      if ("error" in auth) return fail(auth.error, auth.status);
       const game = await getGame(body.gameId);
       if (!game || game.status === "archived") return fail("GAME_MISSING", 404);
       const rounds = buildRounds(game.doc);
@@ -33,6 +35,7 @@ export async function POST(req: Request) {
         p_rounds: rounds,
       });
       if (!res.ok) return fail(res.error);
+      await claimSession(res.session_id as string, auth.actor);
       return ok({ sessionId: res.session_id, code: res.code, hostToken });
     }
 

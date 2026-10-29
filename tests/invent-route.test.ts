@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import type { PGlite } from "@electric-sql/pglite";
+import { migratedDb } from "./helpers/db";
 import type { InventDoc } from "@/lib/invent/engine";
 import type { InventGuestView, InventHostView } from "@/lib/invent/views";
 
@@ -28,18 +27,18 @@ vi.mock("@/lib/server/db", () => ({
   },
 }));
 vi.mock("@/lib/server/broadcast", () => ({ notifyGame: async () => {} }));
-vi.mock("@/lib/server/admin", () => ({ isAdmin: async () => true }));
+// Room creation is gated by lib/server/access (covered in access.test.ts): signed in as the super admin here.
+vi.mock("@/lib/server/access", () => ({
+  authorizeCreate: async () => ({ actor: { user: null, privileged: true } }),
+  claimSession: async () => {},
+}));
 
 const { POST } = await import("@/app/api/invent/route");
 const { POST: GUEST } = await import("@/app/api/guest/route");
 
-const MIGRATIONS_DIR = path.join(__dirname, "..", "supabase/migrations");
 
 beforeAll(async () => {
-  pg = new PGlite();
-  for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()) {
-    await pg.exec(readFileSync(path.join(MIGRATIONS_DIR, f), "utf8"));
-  }
+  pg = await migratedDb();
 });
 
 type Body<V> = { ok: boolean; error?: string; message?: string; view?: V; sessionId?: string; code?: string; hostToken?: string; playerToken?: string };
@@ -61,8 +60,9 @@ interface Room {
   join: (name: string) => Promise<Res<unknown>>;
 }
 
-async function openRoom(names = NAMES): Promise<Room> {
-  const created = await call<never>(POST, { action: "create" });
+/** The private Ahaji room by default (46 questions); pass `create` for a public room with its own questions. */
+async function openRoom(names = NAMES, create: Record<string, unknown> = { questionSet: "ahaji" }): Promise<Room> {
+  const created = await call<never>(POST, { action: "create", ...create });
   expect(created.body.ok).toBe(true);
   const { sessionId, code, hostToken } = created.body as { sessionId: string; code: string; hostToken: string };
   const tokens: Record<string, string> = {};
@@ -97,7 +97,7 @@ async function age(sessionId: string, ms: number) {
 }
 
 describe("/api/invent", () => {
-  it("is schema version 6 and routes lookups to the right join screen", async () => {
+  it("routes lookups to the right join screen", async () => {
     const room = await openRoom([]);
     const look = await call<never>(GUEST, { action: "lookup", code: room.code });
     expect(look.body).toMatchObject({ ok: true, kind: "invent", canJoin: true });
@@ -280,5 +280,44 @@ describe("/api/invent", () => {
     expect(back.body.view!.me.playerId).toBe(id);
     expect(back.body.view!.myAnswer).toBe("رجعت");
     expect(back.body.view!.seated).toBe(true);
+  });
+});
+
+describe("/api/invent public rooms (the host's own questions)", () => {
+  const QS = ["وش أغرب أكلة جربتها؟", "لو صرت مدير يوم واحد وش أول قرار؟", "وش أسوأ هدية جاتك؟"];
+
+  it("refuses a room without questions, or a match longer than its questions", async () => {
+    expect((await call<never>(POST, { action: "create" })).body.error).toBe("IV_QUESTIONS");
+    expect((await call<never>(POST, { action: "create", questions: ["", "   "] })).body.error).toBe("IV_QUESTIONS");
+    expect((await call<never>(POST, { action: "create", questions: ["x".repeat(201)] })).body.error).toBe("IV_QUESTIONS");
+    expect((await call<never>(POST, { action: "create", questions: QS, rounds: 4 })).body.error).toBe("IV_ROUNDS");
+  });
+
+  it("stores the questions with the room and plays only those (never the Ahaji set)", async () => {
+    const room = await openRoom(["أ", "ب", "ج"], { questions: [...QS, ` ${QS[0]} `, ""], rounds: 3, answerSeconds: 20 });
+    let h = await room.host("state");
+    expect(h.body.view!.limits.questions).toBe(3);
+    expect(h.body.view!.settings).toEqual({ rounds: 3, answerSeconds: 20, voteSeconds: 30 });
+    expect((await room.host("settings", { rounds: 4 })).status).toBe(400);
+
+    const row = await pg.query<{ config: { questionSet: string; questions: { text: string }[] }; game_key: string }>(
+      "select config, game_key from public.game_sessions where id = $1",
+      [room.sessionId],
+    );
+    expect(row.rows[0].game_key).toBe("invent");
+    expect(row.rows[0].config.questionSet).toBe("custom");
+    expect(row.rows[0].config.questions.map((q) => q.text)).toEqual(QS);
+
+    h = await room.host("start");
+    const shown = h.body.view!.game!.question.text;
+    expect(QS).toContain(shown);
+    expect((await room.guest("أ", "state")).body.view!.game!.question.text).toBe(shown);
+    expect((await docOf(room.sessionId)).game!.questions!.map((q) => q.text).sort()).toEqual([...QS].sort());
+  });
+
+  it("an Ahaji room is filed under the private catalog entry", async () => {
+    const room = await openRoom([]);
+    const row = await pg.query<{ game_key: string }>("select game_key from public.game_sessions where id = $1", [room.sessionId]);
+    expect(row.rows[0].game_key).toBe("invent_ahaji");
   });
 });

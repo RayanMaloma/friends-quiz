@@ -2,17 +2,22 @@ import { rpc } from "@/lib/server/db";
 import { notifyGame } from "@/lib/server/broadcast";
 import { fail, getSnapshot, handleError, ok, readBody, type RpcResult } from "@/lib/server/game";
 import { hashToken, isTokenShaped, isUuid, newToken } from "@/lib/server/tokens";
-import { isAdmin } from "@/lib/server/admin";
+import { authorizeCreate, claimSession } from "@/lib/server/access";
+import { QUESTION_BANK } from "@/lib/invent/questions";
 import {
   advance,
   applyHostMove,
   applyPlayerMove,
   applySettings,
+  cleanQuestions,
+  DEFAULT_SETTINGS,
+  isTimerSeconds,
   newDoc,
   startGame,
   type EngineResult,
   type HostMove,
   type InventDoc,
+  type InventQuestion,
   type InventSettings,
   type Phase,
   type PlayerMove,
@@ -65,6 +70,21 @@ async function identify(body: Record<string, unknown>): Promise<Identified> {
 
 function viewFor(snapshot: Snapshot, doc: InventDoc, actor: Actor) {
   return actor.kind === "host" ? buildInventHostView(snapshot, doc) : buildInventGuestView(snapshot, doc, actor.id);
+}
+
+/** The questions this room draws from: its host's own, or (private room) the Ahaji set. */
+function poolOf(snapshot: Snapshot): readonly InventQuestion[] {
+  const config = snapshot.session.config as unknown as InventSessionConfig;
+  if (config.questionSet === "custom") return Array.isArray(config.questions) ? config.questions : [];
+  return QUESTION_BANK;
+}
+
+/** Matches saved before rooms had pools only stored question ids: add their text once. */
+function withQuestionText(doc: InventDoc, pool: readonly InventQuestion[]): InventDoc {
+  const g = doc.game;
+  if (!g || g.questions) return doc;
+  const byId = new Map(pool.map((q) => [q.id, q]));
+  return { ...doc, game: { ...g, questions: g.questionIds.map((id) => ({ id, text: byId.get(id)?.text ?? "" })) } };
 }
 
 const isRound = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 100;
@@ -122,7 +142,7 @@ async function commit(body: Record<string, unknown>, first: Identified, change: 
     if ("error" in who) return who.error;
     const { snapshot, actor } = who;
     const now = Date.parse(snapshot.now);
-    const current = inventDocOf(snapshot)!;
+    const current = withQuestionText(inventDocOf(snapshot)!, poolOf(snapshot));
     if (snapshot.session.status === "FINISHED") return ok({ view: viewFor(snapshot, current, actor) });
 
     const active = activeIds(snapshot);
@@ -179,24 +199,40 @@ export async function POST(req: Request) {
     const body = await readBody(req);
     const action = body.action;
 
-    // Opening a room is an admin action (the host laptop logs in once).
+    // Opening a room needs an account. A public room plays the host's own
+    // questions (sent here, kept with the room); the Ahaji set is private.
     if (action === "create") {
-      if (!(await isAdmin())) return fail("ADMIN_REQUIRED", 401);
+      const ahaji = body.questionSet === "ahaji";
+      const auth = await authorizeCreate(ahaji ? "invent_ahaji" : "invent");
+      if ("error" in auth) return fail(auth.error, auth.status);
+      const questions = ahaji ? null : cleanQuestions(body.questions);
+      if (!ahaji && !questions) return fail("IV_QUESTIONS");
+      const poolSize = questions ? questions.length : QUESTION_BANK.length;
+      // Match settings chosen with the questions (still editable in the lobby).
+      const settings = { ...DEFAULT_SETTINGS, rounds: Math.min(DEFAULT_SETTINGS.rounds, poolSize) };
+      const lobby = applySettings(newDoc(settings), {
+        rounds: optInt(body.rounds),
+        answerSeconds: isTimerSeconds(body.answerSeconds) ? body.answerSeconds : undefined,
+        voteSeconds: isTimerSeconds(body.voteSeconds) ? body.voteSeconds : undefined,
+      }, poolSize);
+      if (!lobby.doc) return fail("IV_ROUNDS");
       const config: InventSessionConfig = {
         kind: "invent",
-        title: "اخترع إجابتك",
+        title: ahaji ? "اخترع إجابتك · أحاجي" : "اخترع إجابتك",
         emoji: "💡",
         accent: "sun",
         settings: { lateJoin: false, askPersonOnJoin: false },
         people: [],
+        ...(questions ? { questionSet: "custom" as const, questions } : { questionSet: "ahaji" as const }),
       };
       const hostToken = newToken();
       const res = await rpc<RpcResult>("fq_invent_create_session", {
         p_host_token_hash: hashToken(hostToken),
         p_config: config,
-        p_match: newDoc(),
+        p_match: lobby.doc,
       });
       if (!res.ok) return fail(res.error);
+      await claimSession(res.session_id as string, auth.actor);
       return ok({ sessionId: res.session_id, code: res.code, hostToken });
     }
 
@@ -214,7 +250,7 @@ export async function POST(req: Request) {
           answerSeconds: optInt(body.answerSeconds),
           voteSeconds: optInt(body.voteSeconds),
         };
-        return await commit(body, who, { kind: "doc", run: (doc) => applySettings(doc, patch) });
+        return await commit(body, who, { kind: "doc", run: (doc, _now, snapshot) => applySettings(doc, patch, poolOf(snapshot).length) });
       }
 
       // Start from the lobby, or a new match straight from the final results
@@ -227,7 +263,7 @@ export async function POST(req: Request) {
             const lobby = snapshot.session.status === "LOBBY" && !doc.game;
             const over = doc.game?.phase === "final";
             if (action === "start" ? !lobby : !over) return { doc };
-            return startGame(doc, seatedPlayers(snapshot), now);
+            return startGame(doc, seatedPlayers(snapshot), now, poolOf(snapshot));
           },
         });
       }

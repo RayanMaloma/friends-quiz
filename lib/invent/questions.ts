@@ -1,14 +1,15 @@
+import "server-only";
+import type { InventQuestion } from "./engine";
+
 /**
- * The approved «اخترع إجابتك» question bank: exactly 46 questions.
+ * The approved «اخترع إجابتك» question bank of the private Ahaji version:
+ * exactly 46 questions. Server only: they must never reach the public
+ * bundle or a public room (public rooms play their host's own questions).
  *
  * The wording is final and must stay exactly as approved (spelling, dialect,
- * spacing — question q23 really has two spaces after «وش»). Ids are stable:
- * a running match stores ids, never the text.
+ * spacing — question q23 really has two spaces after «وش»). Ids are stable.
  */
-export interface InventQuestion {
-  id: string;
-  text: string;
-}
+export type { InventQuestion };
 
 export const QUESTION_BANK: readonly InventQuestion[] = [
   { id: "q01", text: "وش أول قرار بيتخذه الدحام لو صار مدير أحاجي بدل خالد؟" },

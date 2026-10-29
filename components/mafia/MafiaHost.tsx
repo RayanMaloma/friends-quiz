@@ -59,7 +59,7 @@ export function MafiaHost({ creds }: { creds: HostCreds }) {
     return (
       <Plain>
         <p className="mf-plain-title">{errorMessage(fatalError)}</p>
-        <Link href="/host" className="mf-btn mf-btn-gold">غرفة جديدة</Link>
+        <Link href="/games" className="mf-btn mf-btn-gold">غرفة جديدة</Link>
       </Plain>
     );
   }
@@ -847,7 +847,7 @@ function Finale({ m, run }: { m: MafiaPublicMatch; run: (a: string, x?: Record<s
         >
           جولة ثانية
         </button>
-        <Link href="/host" className="mf-btn mf-btn-ghost">غرفة جديدة</Link>
+        <Link href="/games" className="mf-btn mf-btn-ghost">غرفة جديدة</Link>
       </div>
     </div>
   );

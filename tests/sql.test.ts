@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import type { PGlite } from "@electric-sql/pglite";
+import { migratedDb } from "./helpers/db";
 import { DEFAULT_SETTINGS, normalizeGameDoc } from "@/lib/game/doc";
 import { buildRounds, buildSessionConfig } from "@/lib/game/rounds";
 
@@ -25,7 +24,6 @@ async function call<T = R>(fn: string, params: Record<string, unknown>): Promise
 }
 
 const HOST = "host-hash";
-const MIGRATIONS_DIR = path.join(__dirname, "..", "supabase/migrations");
 
 const doc = normalizeGameDoc({
   title: "Test",
@@ -84,10 +82,7 @@ const snapshot = (sessionId: string) =>
   }>("fq_get_snapshot", { p_session_id: sessionId });
 
 beforeAll(async () => {
-  pg = new PGlite();
-  for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()) {
-    await pg.exec(readFileSync(path.join(MIGRATIONS_DIR, f), "utf8"));
-  }
+  pg = await migratedDb();
 });
 
 describe("sessions (SQL)", () => {
@@ -272,6 +267,6 @@ describe("games (SQL)", () => {
   });
 
   it("reports the schema version", async () => {
-    expect(await call<number>("fq_schema_version", {})).toBe(6);
+    expect(await call<number>("fq_schema_version", {})).toBe(7);
   });
 });

@@ -35,7 +35,7 @@ export default function HostGamePage() {
     return (
       <FullScreenCenter>
         <p className="font-display text-4xl">{errorMessage("FORBIDDEN")}</p>
-        <Link href="/host" className="btn btn-primary h-16 px-8 text-2xl">إنشاء لعبة جديدة</Link>
+        <Link href="/games" className="btn btn-primary h-16 px-8 text-2xl">إنشاء لعبة جديدة</Link>
       </FullScreenCenter>
     );
   }
@@ -151,7 +151,7 @@ function HostGame({ creds }: { creds: HostCreds }) {
     return (
       <FullScreenCenter>
         <p className="font-display text-4xl">{errorMessage(fatalError)}</p>
-        <Link href="/host" className="btn btn-primary h-16 px-8 text-2xl">رجوع</Link>
+        <Link href="/games" className="btn btn-primary h-16 px-8 text-2xl">رجوع</Link>
       </FullScreenCenter>
     );
   }
@@ -241,7 +241,7 @@ function HostGame({ creds }: { creds: HostCreds }) {
           </button>
         )}
         {view.status === "FINISHED" && (
-          <Link href="/host" className="btn btn-ghost btn-tv h-[8vh] px-[2.4vw] text-[3.4vh]">
+          <Link href="/games" className="btn btn-ghost btn-tv h-[8vh] px-[2.4vw] text-[3.4vh]">
             لعبة جديدة
           </Link>
         )}

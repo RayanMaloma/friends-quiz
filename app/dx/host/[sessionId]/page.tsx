@@ -18,7 +18,7 @@ export default function DxHostPage() {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center gap-6 text-center">
         <p className="font-display text-4xl">{errorMessage("FORBIDDEN")}</p>
-        <Link href="/host" className="btn btn-primary h-16 px-8 text-2xl">إنشاء لعبة جديدة</Link>
+        <Link href="/games" className="btn btn-primary h-16 px-8 text-2xl">إنشاء لعبة جديدة</Link>
       </main>
     );
   }

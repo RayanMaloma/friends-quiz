@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import type { PGlite } from "@electric-sql/pglite";
+import { migratedDb } from "./helpers/db";
 
 // Mafia rooms on the real migrations (in-memory Postgres): kind detection,
 // joining, the optimistic lock, going back to the lobby for a rematch, closing.
@@ -20,13 +19,9 @@ async function call<T = R>(fn: string, params: Record<string, unknown>): Promise
   return res.rows[0].result;
 }
 
-const MIGRATIONS_DIR = path.join(__dirname, "..", "supabase/migrations");
 
 beforeAll(async () => {
-  pg = new PGlite();
-  for (const f of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort()) {
-    await pg.exec(readFileSync(path.join(MIGRATIONS_DIR, f), "utf8"));
-  }
+  pg = await migratedDb();
 });
 
 const CONFIG = {
@@ -39,8 +34,8 @@ const CONFIG = {
 };
 
 describe("mafia rooms (SQL)", () => {
-  it("is schema version 6", async () => {
-    expect(await call<number>("fq_schema_version", {})).toBe(6);
+  it("is schema version 7", async () => {
+    expect(await call<number>("fq_schema_version", {})).toBe(7);
   });
 
   it("only creates rooms of kind mafia", async () => {

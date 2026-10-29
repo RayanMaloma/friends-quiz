@@ -26,7 +26,7 @@ export default function Home() {
       <section className="home-hero">
         <h1 className="home-title anim-rise">مين بيفوز الليلة؟</h1>
         <div className="anim-rise" style={{ animationDelay: "120ms" }}>
-          <Link href="/host" className="btn home-cta">
+          <Link href="/games" className="btn home-cta">
             اختر لعبة
             <span aria-hidden className="home-cta-arrow">←</span>
           </Link>

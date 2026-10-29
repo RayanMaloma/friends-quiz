@@ -22,7 +22,7 @@ export default function InventHostPage() {
       <div className="iv iv-joinpage">
         <div className="iv-join-form">
           <p className="iv-error">{errorMessage("FORBIDDEN")}</p>
-          <Link href="/host" className="iv-btn iv-btn-gold">غرفة جديدة</Link>
+          <Link href="/games" className="iv-btn iv-btn-gold">غرفة جديدة</Link>
         </div>
       </div>
     );

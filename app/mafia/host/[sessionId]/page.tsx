@@ -16,7 +16,7 @@ export default function MafiaHostPage() {
     return (
       <Plain>
         <p className="mf-plain-title">{errorMessage("FORBIDDEN")}</p>
-        <Link href="/host" className="mf-btn mf-btn-gold">غرفة جديدة</Link>
+        <Link href="/games" className="mf-btn mf-btn-gold">غرفة جديدة</Link>
       </Plain>
     );
   }
