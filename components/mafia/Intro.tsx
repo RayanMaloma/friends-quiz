@@ -28,7 +28,6 @@ export function IntroSequence({ elapsed }: { elapsed: number }) {
       <div className="mf-intro-beam is-b" />
       <Emblem role="mafia" className="mf-intro-shadow" />
       <div className="mf-intro-title">
-        <p className="mf-intro-eyebrow">ألعاب الشلّة تقدّم</p>
         <h1 className="mf-intro-wordmark" dir="ltr">MAFIA</h1>
         <p className="mf-intro-ar">المافيا</p>
       </div>

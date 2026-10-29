@@ -126,14 +126,14 @@ function Phone({ view, receivedAt, act, creds, connected, error }: {
         ) : m.phase === "intro" && view.seated ? (
           <PhoneIntro t={now - m.phaseStartedAt} />
         ) : !view.seated || !secret ? (
-          <Center icon="moon" title="اللعبة بدأت بدونك" text="تابع من التلفزيون، وتدخل الجولة الجاية." />
+          <Center icon="moon" title="اللعبة بدأت بدونك" text="تدخل الجولة الجاية" />
         ) : (
-          <PhoneGame m={m} secret={secret} act={act} meId={view.me.playerId} left={left} />
+          <PhoneGame m={m} secret={secret} act={act} meId={view.me.playerId} />
         )}
       </main>
       {showHoldBar && <HoldBar secret={secret!} />}
       {error && <p className="mf-toast" role="alert">{error}</p>}
-      {!connected && <div className="mf-conn">في مشكلة بالاتصال… نحاول نرجع</div>}
+      {!connected && <div className="mf-conn">انقطع الاتصال… نحاول نرجع</div>}
     </div>
   );
 }
@@ -148,11 +148,7 @@ function PhoneLobby({ view, creds }: { view: MafiaGuestView; creds: PlayerCreds 
     <div className="mf-phone-center">
       <p className="mf-wordmark-sm">MAFIA</p>
       <h1 className="mf-phone-title">دخلت الغرفة</h1>
-      <p className="mf-phone-text">
-        بانتظار المضيف يوزّع الأدوار… <br />
-        <span className="mf-hint">في الغرفة {n} {n === 1 ? "لاعب" : "لاعبين"}</span>
-      </p>
-      <p className="mf-hint">إذا طلعت من الصفحة، ارجع لها وبتكمّل من مكانك.</p>
+      <p className="mf-hint">{n} {n === 1 ? "لاعب" : "لاعبين"}</p>
       <button
         className="mf-btn mf-btn-ghost"
         disabled={busy}
@@ -176,9 +172,8 @@ function PhoneIntro({ t }: { t: number }) {
   const digit = introDigit(t);
   return (
     <div className="mf-phone-center mf-phone-intro">
-      <p className="mf-eyebrow">انظر للتلفزيون</p>
       <h1 className="mf-wordmark">MAFIA</h1>
-      <p className="mf-phone-text">{t < INTRO.countAt ? "الأدوار توزّعت بالسر… بطاقتك جاية." : "استعد…"}</p>
+      <p className="mf-phone-text">{t < INTRO.countAt ? "انظر للتلفزيون" : "استعد…"}</p>
       <div className="mf-phone-intro-count" aria-live="polite">{digit && <span key={digit}>{digit}</span>}</div>
     </div>
   );
@@ -195,7 +190,7 @@ function Center({ icon, title, text, children }: { icon: "moon" | "eye" | "sun";
   );
 }
 
-function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret: MafiaSecret; act: Act; meId: string; left: number | null }) {
+function PhoneGame({ m, secret, act, meId }: { m: MafiaPublicMatch; secret: MafiaSecret; act: Act; meId: string }) {
   if (m.phase === "gameOver") return <PhoneResult m={m} secret={secret} meId={meId} />;
 
   if (m.phase === "roleReveal") {
@@ -203,9 +198,8 @@ function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret
       <div className="mf-phone-reveal">
         <NoScroll />
         <h1 className="mf-phone-title">بطاقتك</h1>
-        <p className="mf-phone-text">اضغط مطوّل عشان تشوف دورك. أول ما ترفع إصبعك تختفي.</p>
         <HoldCard secret={secret} onFirstHold={secret.seen ? undefined : () => void act({ type: "seeRole" })} />
-        {secret.seen && <p className="mf-hint">شفت دورك ✓ — انتظر الليل</p>}
+        {secret.seen && <p className="mf-hint">شفت دورك ✓</p>}
       </div>
     );
   }
@@ -216,19 +210,19 @@ function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret
       <Center
         icon="eye"
         title="طلعت من اللعبة"
-        text={me?.out?.by === "night" ? `قتلوك بالليلة ${me.out.round}.` : me?.out ? `المدينة طردتك بتصويت يوم ${me.out.round}.` : undefined}
+        text={me?.out?.by === "night" ? `قُتلت · ليلة ${me.out.round}` : me?.out ? `طُردت · يوم ${me.out.round}` : undefined}
       >
         <RoleChip role={secret.role} />
-        <p className="mf-hint">لا تتكلم ولا تلمّح… تابع القصة من التلفزيون.</p>
+        <p className="mf-hint">لا تتكلم ولا تلمّح</p>
       </Center>
     );
   }
 
   if (secret.task && secret.task.kind !== "vote") {
-    return <NightTask key={`${m.round}-${m.phase}`} m={m} task={secret.task} secret={secret} act={act} left={left} />;
+    return <NightTask key={`${m.round}-${m.phase}`} m={m} task={secret.task} secret={secret} act={act} />;
   }
   if (secret.task && secret.task.kind === "vote") {
-    return <VoteTask key={`vote-${m.round}`} m={m} task={secret.task} act={act} left={left} />;
+    return <VoteTask key={`vote-${m.round}`} m={m} task={secret.task} act={act} />;
   }
 
   // The detective's finding stays on their phone for the rest of the night (and in the notebook after).
@@ -247,13 +241,13 @@ function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret
     case "mafia":
     case "detective":
     case "doctor":
-      return <Center icon="moon" title="الليل…" text="خلّك هادي، وانتظر الصبح." />;
+      return <Center icon="moon" title="الليل…" />;
     case "discussion":
-      return <Center icon="eye" title="النقاش" text="ناقشوا وجهًا لوجه… وراقب وجيههم." />;
+      return <Center icon="eye" title="وقــت النقــاش" />;
     case "voting":
-      return <Center icon="eye" title="التصويت" text="انظر للتلفزيون." />;
+      return <Center icon="eye" title="انظر للتلفزيون" />;
     default:
-      return <Center icon="sun" title="انظر للتلفزيون" text="الراوي بيعلن وش صار." />;
+      return <Center icon="sun" title="انظر للتلفزيون" />;
   }
 }
 
@@ -262,9 +256,9 @@ function PhoneGame({ m, secret, act, meId, left }: { m: MafiaPublicMatch; secret
 /* ------------------------------------------------------------------ */
 
 const TASK_COPY = {
-  mafia: { title: "اختر الضحية", hint: "ضغطة وحدة تكفي · تقدر تغيّر لين ما يختار الباقين" },
-  detective: { title: "مع مين تحقق؟", hint: "ضغطة وحدة · تعرف دوره فورًا، ولا تقدر تغيّر" },
-  doctor: { title: "مين تحمي الليلة؟", hint: "ضغطة وحدة · تقدر تحمي نفسك · كل شخص مرة وحدة باللعبة" },
+  mafia: { title: "اختر الضحية", hint: "تقدر تغيّر" },
+  detective: { title: "مع مين تحقق؟", hint: "ما تقدر تغيّر" },
+  doctor: { title: "مين تحمي؟", hint: "نفسك مسموح · كل شخص مرة" },
 } as const;
 
 function Finding({ name, role }: { name: string; role: MafiaSecret["role"] }) {
@@ -273,12 +267,12 @@ function Finding({ name, role }: { name: string; role: MafiaSecret["role"] }) {
       <p className="mf-eyebrow">نتيجة التحقيق</p>
       <h2>{name}</h2>
       <RoleChip role={role} />
-      <p className="mf-hint">النتيجة لك وحدك. احفظها… وتصرّف بحكمة. تلقاها بعدين في «بطاقتي».</p>
+      <p className="mf-hint">لك وحدك · تلقاها في «بطاقتي»</p>
     </div>
   );
 }
 
-function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: MafiaTask; secret: MafiaSecret; act: Act; left: number | null }) {
+function NightTask({ m, task, secret, act }: { m: MafiaPublicMatch; task: MafiaTask; secret: MafiaSecret; act: Act }) {
   const kind = task.kind as "mafia" | "detective" | "doctor";
   const [pending, setPending] = useState<string | null>(null);
   // One request at a time: a second tap while the first is on its way is dropped.
@@ -310,7 +304,7 @@ function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: 
         <Finding name={result.name} role={result.role} />
       ) : task.targets.length === 0 ? (
         // The doctor has protected everyone left: the phase still runs, so nobody can tell.
-        <p className="mf-hint">ما فيه أحد تقدر تحميه الليلة… انتظر الصبح.</p>
+        <p className="mf-hint">ما فيه أحد تحميه</p>
       ) : (
         <ul className="mf-targets">
           {task.targets.map((t) => {
@@ -352,10 +346,7 @@ function NightTask({ m, task, secret, act, left }: { m: MafiaPublicMatch; task: 
           {skippers.length > 0 && <span className="mf-target-tags">{skippers.map((x) => x.name).join("، ")}</span>}
         </button>
       )}
-      <p className="mf-task-foot">
-        {choice === SKIP ? "تخطّيت ✓" : choice ? "اختيارك وصل ✓" : "ما اخترت للحين"}
-        {left !== null && !m.paused && <> · باقي <b dir="ltr">{Math.ceil(left / 1000)}</b> ث</>}
-      </p>
+      {choice && <p className="mf-task-foot">{choice === SKIP ? "تخطّيت ✓" : "تم الاختيار ✓"}</p>}
     </div>
   );
 }
@@ -386,7 +377,7 @@ function NoScroll() {
   return null;
 }
 
-function VoteTask({ m, task, act, left }: { m: MafiaPublicMatch; task: MafiaTask; act: Act; left: number | null }) {
+function VoteTask({ m, task, act }: { m: MafiaPublicMatch; task: MafiaTask; act: Act }) {
   const [pending, setPending] = useState<string | null>(null);
   const choice = pending ?? task.choice;
 
@@ -402,11 +393,11 @@ function VoteTask({ m, task, act, left }: { m: MafiaPublicMatch; task: MafiaTask
       <header className="mf-task-head">
         <div>
           <h1>مين تطرد؟</h1>
-          <p>صوتك سرّي · تقدر تغيّره قبل ما ينتهي الوقت</p>
+          <p>صوتك سرّي · تقدر تغيّره</p>
         </div>
       </header>
       <button className={`mf-skip-vote ${choice === "skip" ? "is-selected" : ""}`} aria-pressed={choice === "skip"} disabled={m.paused} onClick={() => vote("skip")}>
-        تخطي التصويت
+        تخطي
       </button>
       <ul className="mf-targets">
         {task.targets.map((t) => (
@@ -418,10 +409,7 @@ function VoteTask({ m, task, act, left }: { m: MafiaPublicMatch; task: MafiaTask
           </li>
         ))}
       </ul>
-      <p className="mf-task-foot">
-        {choice ? "صوتك وصل ✓" : "ما صوّت للحين — بدون صوت = تخطي"}
-        {left !== null && !m.paused && <> · باقي <b dir="ltr">{Math.ceil(left / 1000)}</b> ث</>}
-      </p>
+      <p className="mf-task-foot">{choice ? "تم التصويت ✓" : "بدون صوت = تخطي"}</p>
     </div>
   );
 }
@@ -437,7 +425,6 @@ function PhoneResult({ m, secret, meId }: { m: MafiaPublicMatch; secret: MafiaSe
     <div className="mf-phone-center mf-phone-result" data-won={won}>
       <p className="mf-eyebrow">{TEAM_NAME[team]} انتصرت</p>
       <h1 className="mf-phone-title">{won ? "فزتوا" : "خسرتوا"}</h1>
-      <p className="mf-phone-text">{m.winner?.reason}</p>
       <ul className="mf-phone-cast">
         {m.players.map((p) => (
           <li key={p.id} className={`${p.alive ? "" : "is-out"} ${p.id === meId ? "is-me" : ""}`}>
@@ -446,7 +433,6 @@ function PhoneResult({ m, secret, meId }: { m: MafiaPublicMatch; secret: MafiaSe
           </li>
         ))}
       </ul>
-      <p className="mf-hint">بانتظار المضيف يبدأ جولة جديدة…</p>
     </div>
   );
 }
@@ -543,7 +529,7 @@ function HoldBar({ secret }: { secret: MafiaSecret }) {
       )}
       <button type="button" className={`mf-holdbar ${held ? "is-held" : ""}`} {...bind}>
         <span className="mf-holdbar-dot" aria-hidden />
-        {held ? "ارفع إصبعك عشان تخفيها" : "اضغط مطوّل · بطاقتي"}
+        {held ? "ارفع إصبعك" : "اضغط مطوّل · بطاقتي"}
       </button>
     </>
   );

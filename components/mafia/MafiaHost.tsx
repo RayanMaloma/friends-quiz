@@ -12,7 +12,7 @@ import { api, errorMessage, resultMessage } from "@/lib/client/api";
 import type { HostCreds } from "@/lib/client/storage";
 import { useGameSync } from "@/lib/client/useGameSync";
 import { useWakeLock } from "@/lib/client/useWakeLock";
-import { MAX_PLAYERS, MIN_PLAYERS, roleCounts, ROLE_INFO, TEAM_NAME, type Role } from "@/lib/mafia/rules";
+import { MAX_PLAYERS, MIN_PLAYERS, roleCounts, ROLE_INFO, type Role } from "@/lib/mafia/rules";
 import { cue, type Cue, type CueKey } from "@/lib/mafia/narration";
 import type { MafiaHostView, MafiaPublicMatch, MafiaPublicPlayer } from "@/lib/mafia/views";
 import { MafiaAudioProvider, useMafiaAudio } from "./audio/AudioProvider";
@@ -335,20 +335,19 @@ function Tv({ view, receivedAt, send, connected }: { view: MafiaHostView; receiv
       </div>
       {m?.paused && (
         <div className="mf-paused">
-          <p className="mf-eyebrow">وقفة</p>
-          <h2>اللعبة متوقفة مؤقتًا</h2>
+          <h2>اللعبة متوقفة</h2>
           <button className="mf-btn mf-btn-gold mf-btn-lg" onClick={() => run("host", { move: { type: "resume" } })}>
-            كمّل اللعبة
+            كمّل
           </button>
         </div>
       )}
       {m && !audio.unlocked && (
         <button className="mf-unlock" onClick={() => void audio.unlock()}>
-          <SpeakerIcon /> اضغط هنا عشان يشتغل الصوت والراوي
+          <SpeakerIcon /> شغّل الصوت
         </button>
       )}
       {error && <p className="mf-toast" role="alert">{error}</p>}
-      {!connected && <div className="mf-conn">في مشكلة بالاتصال… نحاول نرجع</div>}
+      {!connected && <div className="mf-conn">انقطع الاتصال… نحاول نرجع</div>}
     </div>
   );
 }
@@ -379,7 +378,7 @@ function TopBar({ view, run }: { view: MafiaHostView; run: (a: string, x?: Recor
       </div>
       <div className="mf-topbar-tools">
         <span className="mf-code-chip">
-          رمز الغرفة <b dir="ltr">{view.code}</b>
+          الرمز <b dir="ltr">{view.code}</b>
         </span>
         {canPause && (
           <button
@@ -408,10 +407,10 @@ function TopBar({ view, run }: { view: MafiaHostView; run: (a: string, x?: Recor
         <div className="mf-modal-back" onClick={() => setConfirm(false)}>
           <div className="mf-modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
             <h3>نلغي الجولة؟</h3>
-            <p>ترجعون للوبي بنفس اللاعبين، والأدوار تتوزع من جديد.</p>
+            <p>ترجعون للوبي بنفس اللاعبين.</p>
             <div className="mf-modal-actions">
               <button className="mf-btn mf-btn-crimson" onClick={() => { setConfirm(false); void run("lobby"); }}>إلغاء الجولة</button>
-              <button className="mf-btn mf-btn-ghost" autoFocus onClick={() => setConfirm(false)}>كمّلوا اللعب</button>
+              <button className="mf-btn mf-btn-ghost" autoFocus onClick={() => setConfirm(false)}>كمّلوا</button>
             </div>
           </div>
         </div>
@@ -438,26 +437,21 @@ function SoundPanel({ onClose }: { onClose: () => void }) {
       <div className="mf-field">
         <span>الراوي</span>
         <p className={`mf-source is-${source.kind}`}>{source.label}</p>
-        {source.kind === "recorded" && <p className="mf-hint">الجمل اللي فيها أسماء: {narrator.hasServerVoice ? "خدمة الصوت" : tts.label}</p>}
-        {!source.najdi && (
-          <p className="mf-hint">
-            لصوت راوي نجدي: سجّل الجمل في public/mafia/voice، أو فعّل خدمة صوت (MAFIA_TTS_PROVIDER) على السيرفر.
-          </p>
-        )}
+        {source.kind === "recorded" && <p className="mf-hint">الأسماء: {narrator.hasServerVoice ? "خدمة الصوت" : tts.label}</p>}
         {narrator.lastError && <p className="mf-hint">{narrator.lastError}</p>}
       </div>
       <label className="mf-field">
-        <span>صوت النظام (للجمل بدون تسجيل)</span>
+        <span>صوت النظام</span>
         <select value={settings.voice} onChange={(e) => update({ voice: e.target.value })}>
-          <option value="auto">تلقائي — سعودي رجّالي إذا موجود، وإلا أي صوت عربي</option>
-          <option value="off">بدون صوت (نص فقط)</option>
+          <option value="auto">تلقائي</option>
+          <option value="off">نص فقط</option>
           {voices.map((v) => (
             <option key={v.uri} value={v.uri}>
               {v.name} ({v.lang})
             </option>
           ))}
         </select>
-        {voices.length === 0 && <p className="mf-hint">هذا المتصفح ما فيه أصوات عربية.</p>}
+        {voices.length === 0 && <p className="mf-hint">ما فيه أصوات عربية.</p>}
       </label>
       <button
         className="mf-btn mf-btn-ghost"
@@ -515,7 +509,7 @@ function Lobby({ view, run }: { view: MafiaHostView; run: (a: string, x?: Record
   const players = view.lobby.filter((p) => p.active);
   const n = players.length;
   const counts = roleCounts(n);
-  const issue = n < MIN_PLAYERS ? `ننتظر ${MIN_PLAYERS - n} ${MIN_PLAYERS - n === 1 ? "لاعب" : "لاعبين"} على الأقل` : n > MAX_PLAYERS ? `الحد الأعلى ${MAX_PLAYERS} لاعب` : null;
+  const issue = n < MIN_PLAYERS ? `ناقص ${MIN_PLAYERS - n} ${MIN_PLAYERS - n === 1 ? "لاعب" : "لاعبين"}` : n > MAX_PLAYERS ? `الحد الأعلى ${MAX_PLAYERS} لاعب` : null;
 
   // A ref, not just state: a double click lands before React re-renders the disabled button.
   const starting = useRef(false);
@@ -533,17 +527,14 @@ function Lobby({ view, run }: { view: MafiaHostView; run: (a: string, x?: Record
   return (
     <div className="mf-lobby">
       <header className="mf-title-block">
-        <p className="mf-eyebrow">ألعاب الشلّة تقدّم</p>
         <h1 className="mf-wordmark">MAFIA</h1>
         <p className="mf-title-ar">المافيا</p>
-        <p className="mf-tagline">الليلة… محد يدري مين يقدر يثق فيه.</p>
       </header>
       <div className="mf-lobby-grid">
         <section className="mf-dossier mf-join">
-          <p className="mf-eyebrow">ادخلوا من جوالاتكم</p>
           <div className="mf-qr" dangerouslySetInnerHTML={{ __html: qr }} />
           <p className="mf-join-code" dir="ltr">{view.code}</p>
-          <p className="mf-hint">امسح الرمز، أو افتح «دخول لعبة» واكتب الرمز</p>
+          <p className="mf-hint">امسح الرمز أو ادخل به</p>
         </section>
         <section className="mf-dossier mf-roster">
           <header className="mf-roster-head">
@@ -553,7 +544,7 @@ function Lobby({ view, run }: { view: MafiaHostView; run: (a: string, x?: Record
             </span>
           </header>
           {n === 0 ? (
-            <p className="mf-roster-empty">ما دخل أحد للحين…</p>
+            <p className="mf-roster-empty">بانتظار اللاعبين…</p>
           ) : (
             <ol className="mf-roster-list">
               {players.map((p, i) => (
@@ -587,7 +578,6 @@ function Lobby({ view, run }: { view: MafiaHostView; run: (a: string, x?: Record
         <div className="mf-modal-back" onClick={() => setRemoving(null)}>
           <div className="mf-modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
             <h3>إخراج {removing.name}؟</h3>
-            <p>يطلع من الغرفة، ويقدر يدخل من جديد.</p>
             <div className="mf-modal-actions">
               <button
                 className="mf-btn mf-btn-crimson"
@@ -629,9 +619,7 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
       const seen = new Set(m.seenIds);
       return (
         <div className="mf-scene-text mf-reveal">
-          <p className="mf-eyebrow">الأدوار توزّعت</p>
-          <h1 className="mf-headline">كل واحد يشوف دوره… بصمت</h1>
-          <p className="mf-lede">اضغط مطوّل على البطاقة في جوالك. لا توري أحد، ولا تعلّق.</p>
+          <h1 className="mf-headline">شوفوا أدواركم… بصمت</h1>
           <ul className="mf-deal">
             {m.players.map((p, i) => (
               <li key={p.id} className={seen.has(p.id) ? "is-seen" : ""} style={{ animationDelay: `${i * 90}ms` }}>
@@ -651,10 +639,10 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
           <div className="mf-reveal-foot">
             <Countdown ms={left} total={total} size="sm" />
             <span className="mf-hint">
-              شافوا أدوارهم: <b>{seen.size}</b> من {m.players.length}
+              شافوا <b>{seen.size}</b> من {m.players.length}
             </span>
             <button className="mf-btn mf-btn-ghost" onClick={() => run("host", { move: { type: "skipReveal" } })}>
-              كلّنا شفنا ← ابدأ الليل
+              ابدأ الليل
             </button>
           </div>
         </div>
@@ -666,7 +654,6 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
         <div className="mf-scene-text mf-nightfall">
           <p className="mf-eyebrow mf-fade">{nightName(m.round)}</p>
           <h1 className="mf-display mf-fade-slow" style={{ animationDelay: "600ms" }}>حلّ الليل</h1>
-          <p className="mf-lede mf-fade" style={{ animationDelay: "1800ms" }}>وكل واحد يخفي أسراره…</p>
         </div>
       );
 
@@ -674,13 +661,12 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
     case "detective":
     case "doctor": {
       const title = {
-        mafia: "القتلة… جاء دوركم",
-        detective: "الشايب… حان وقت التحقيق",
-        doctor: "الطبيب… اختر من تحميه",
+        mafia: "دور القتلة",
+        detective: "دور الشايب",
+        doctor: "دور الطبيب",
       }[m.phase];
       return (
         <div className="mf-scene-text mf-night-role" data-role={m.phase}>
-          <p className="mf-eyebrow">{nightName(m.round)}</p>
           <Emblem role={m.phase} className="mf-night-emblem" />
           <h1 className="mf-headline">{title}</h1>
           <Countdown ms={left} total={total} size="lg" />
@@ -694,9 +680,7 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
       if (!d) {
         return (
           <div className="mf-scene-text mf-dawn">
-            <p className="mf-eyebrow mf-fade">{nightName(m.round)} انتهت</p>
             <h1 className="mf-display mf-fade-slow">طلع الفجر</h1>
-            <p className="mf-lede mf-fade" style={{ animationDelay: "1400ms" }}>وخلونا نشوف وش صار الليلة…</p>
           </div>
         );
       }
@@ -707,25 +691,21 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
             <p className="mf-eyebrow mf-fade">ضحية الليلة</p>
             <h1 className="mf-victim mf-fade-slow">{victim}</h1>
             {/* Same for every role: what they were stays secret until the end. */}
-            <p className="mf-lede mf-fade" style={{ animationDelay: "500ms" }}>تم قتله… ودوره يبقى سرّ لين النهاية.</p>
           </div>
         );
       }
       if (d.outcome === "saved") {
         return (
           <div className="mf-scene-text mf-announce is-saved">
-            <p className="mf-eyebrow mf-fade">محاولة اغتيال فاشلة</p>
+            <p className="mf-eyebrow mf-fade">نجا الليلة</p>
             <h1 className="mf-victim mf-fade-slow">{victim}</h1>
-            <p className="mf-lede mf-fade" style={{ animationDelay: "600ms" }}>كان الهدف الليلة… بس الطبيب كان أسرع منهم.</p>
             <Emblem role="doctor" className="mf-announce-emblem mf-fade" />
           </div>
         );
       }
       return (
         <div className="mf-scene-text mf-announce is-quiet">
-          <p className="mf-eyebrow mf-fade">الليلة مرّت</p>
-          <h1 className="mf-display mf-fade-slow">ليلة هادية</h1>
-          <p className="mf-lede mf-fade" style={{ animationDelay: "600ms" }}>محد مات الليلة… بس القتلة لسا بينكم.</p>
+          <h1 className="mf-display mf-fade-slow">محد مات الليلة</h1>
         </div>
       );
     }
@@ -733,7 +713,6 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
     case "discussion":
       return (
         <div className="mf-scene-text mf-discussion">
-          <p className="mf-eyebrow">النقاش</p>
           <div className={`mf-bigclock ${left !== null && left <= 10000 ? "is-urgent" : ""}`} dir="ltr" role="timer">
             {formatClock(left)}
           </div>
@@ -745,7 +724,6 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
     case "voting":
       return (
         <div className="mf-scene-text mf-voting">
-          <p className="mf-eyebrow">التصويت</p>
           <h1 className="mf-headline">صوّتوا من جوالاتكم</h1>
           <Countdown ms={left} total={total} size="lg" />
           <div className="mf-votes" aria-label={`صوّت ${m.votedCount} من ${m.voterCount}`}>
@@ -754,7 +732,7 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
             ))}
           </div>
           <p className="mf-lede">
-            صوّت <b>{m.votedCount}</b> من {m.voterCount} · اللي ما يصوّت = تخطي · التعادل = محد يطلع
+            صوّت <b>{m.votedCount}</b> من {m.voterCount}
           </p>
         </div>
       );
@@ -764,7 +742,6 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
       if (!v) {
         return (
           <div className="mf-scene-text mf-verdict-wait">
-            <p className="mf-eyebrow">انتهى التصويت</p>
             <h1 className="mf-display mf-fade-slow">المدينة قررت…</h1>
           </div>
         );
@@ -776,13 +753,11 @@ function PhaseScreen({ m, now, run }: { m: MafiaPublicMatch; now: number; run: (
             <>
               <p className="mf-eyebrow mf-fade">المدينة طردت</p>
               <h1 className="mf-victim mf-fade-slow">{nameOf(m, v.targetId)}</h1>
-              <p className="mf-lede mf-fade" style={{ animationDelay: "900ms" }}>تم استبعاده… ودوره يبقى سرّ لين النهاية.</p>
             </>
           ) : (
             <>
               <p className="mf-eyebrow mf-fade">{v.outcome === "skip" ? "تخطّي" : "تعادل"}</p>
               <h1 className="mf-display mf-fade-slow">محد يطلع اليوم</h1>
-              <p className="mf-lede mf-fade">{v.outcome === "skip" ? "أغلب المدينة اختارت تتخطى." : "الأصوات تعادلت… والقتلة يبتسمون."}</p>
             </>
           )}
           <ul className="mf-tally mf-fade" style={{ animationDelay: "500ms" }}>
@@ -828,7 +803,7 @@ function SkipDiscussion({ run }: { run: (a: string, x?: Record<string, unknown>)
 
 function outLabel(p: MafiaPublicPlayer): string {
   if (!p.out) return "نجا";
-  return p.out.by === "night" ? `قُتل بالليلة ${p.out.round}` : `طُرد بتصويت يوم ${p.out.round}`;
+  return p.out.by === "night" ? `قُتل · ليلة ${p.out.round}` : `طُرد · يوم ${p.out.round}`;
 }
 
 function Finale({ m, run }: { m: MafiaPublicMatch; run: (a: string, x?: Record<string, unknown>) => Promise<void> }) {
@@ -841,7 +816,6 @@ function Finale({ m, run }: { m: MafiaPublicMatch; run: (a: string, x?: Record<s
   return (
     <div className="mf-finale" data-team={team}>
       <Emblem role={team === "mafia" ? "mafia" : "city"} className="mf-finale-emblem mf-fade-slow" />
-      <p className="mf-eyebrow mf-fade">انتهت اللعبة</p>
       <h1 className="mf-display mf-fade-slow">{team === "mafia" ? "المافيا انتصرت" : "المدينة انتصرت"}</h1>
       <p className="mf-lede mf-fade" style={{ animationDelay: "900ms" }}>{m.winner?.reason}</p>
       <ul className="mf-cast">
@@ -871,11 +845,10 @@ function Finale({ m, run }: { m: MafiaPublicMatch; run: (a: string, x?: Record<s
             setBusy(false);
           }}
         >
-          جولة جديدة بنفس الشلّة
+          جولة ثانية
         </button>
         <Link href="/host" className="mf-btn mf-btn-ghost">غرفة جديدة</Link>
       </div>
-      <p className="mf-hint">{TEAM_NAME[team]} · {m.round} {m.round === 1 ? "ليلة" : "ليالي"}</p>
     </div>
   );
 }

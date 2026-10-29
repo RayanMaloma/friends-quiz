@@ -80,7 +80,7 @@ export function RoleCard({ role, teammates, compact }: { role: Role; teammates?:
         <span className="mf-card-corner tr" />
         <span className="mf-card-corner bl" />
         <span className="mf-card-corner br" />
-        <p className="mf-card-eyebrow">ملف سرّي · {info.team}</p>
+        <p className="mf-card-eyebrow">{info.team}</p>
         <Emblem role={role} className="mf-card-emblem" />
         <h2 className="mf-card-name">{info.name}</h2>
         {!compact && <p className="mf-card-tagline">{info.tagline}</p>}
@@ -95,7 +95,7 @@ export function RoleCard({ role, teammates, compact }: { role: Role; teammates?:
             </ul>
           </div>
         )}
-        {role === "mafia" && teammates && teammates.length === 0 && !compact && <p className="mf-card-goal">أنت القاتل الوحيد… لا تثق بأحد.</p>}
+        {role === "mafia" && teammates && teammates.length === 0 && !compact && <p className="mf-card-goal">أنت القاتل الوحيد</p>}
       </div>
     </div>
   );

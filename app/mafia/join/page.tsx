@@ -80,7 +80,7 @@ function MafiaJoin() {
         <p className="mf-eyebrow">غرفة <b dir="ltr">{code}</b></p>
         <h1 className="mf-wordmark">MAFIA</h1>
         <p className="mf-title-ar">المافيا</p>
-        {!canJoin && <p className="mf-note">الأدوار توزّعت والدخول مقفل. إذا كنت داخل قبل، اكتب نفس اسمك بالضبط.</p>}
+        {!canJoin && <p className="mf-note">اللعبة بدأت · للرجوع اكتب نفس اسمك</p>}
         <label htmlFor="mf-name" className="mf-join-label">وش اسمك؟</label>
         <input
           id="mf-name"
@@ -89,7 +89,6 @@ function MafiaJoin() {
           maxLength={24}
           autoComplete="nickname"
           enterKeyHint="go"
-          placeholder="اسمك هنا"
           onChange={(e) => {
             setName(e.target.value);
             setError(null);
@@ -100,7 +99,6 @@ function MafiaJoin() {
           {busy && <span className="mf-loader" />}
           ادخل المدينة
         </button>
-        <p className="mf-hint">اسمك يطلع على التلفزيون. دورك ما يعرفه إلا أنت.</p>
       </form>
     </div>
   );

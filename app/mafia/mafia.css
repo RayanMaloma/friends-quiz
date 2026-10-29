@@ -397,11 +397,6 @@ html:has(.mf) body {
   color: var(--mf-ivory);
   text-shadow: 0 0.1em 0.6em rgba(0, 0, 0, 0.7);
 }
-.mf-tagline {
-  margin: 0.2em 0 0;
-  font-size: 1.35em;
-  color: var(--mf-muted);
-}
 .mf-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -1386,9 +1381,6 @@ html:has(.mf) body {
 .mf-intro .mf-title-ar {
   font-size: 4.2em;
 }
-.mf-intro .mf-tagline {
-  font-size: 1.7em;
-}
 .mf-skip {
   margin-top: 2em;
   font-size: 0.9em;
@@ -1802,18 +1794,6 @@ html:has(.mf) body {
   /* Clear the centre before the countdown starts at 7s. */
   58% { opacity: 1; transform: translateY(0) scale(1.07); animation-timing-function: cubic-bezier(0.6, 0, 0.2, 1); }
   68%, 100% { opacity: 1; transform: translateY(-27vh) scale(0.58); }
-}
-.mf-intro-eyebrow {
-  margin: 0;
-  font-size: clamp(14px, 2.2vh, 30px);
-  font-weight: 500;
-  color: var(--mf-gold);
-  animation: mf-i-eyebrow 10s linear var(--intro-t) both;
-}
-@keyframes mf-i-eyebrow {
-  0%, 9% { opacity: 0; }
-  18%, 27% { opacity: 0.9; }
-  33%, 100% { opacity: 0; }
 }
 .mf-intro-wordmark {
   margin: 0;
