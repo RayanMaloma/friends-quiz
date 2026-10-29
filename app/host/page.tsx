@@ -143,7 +143,7 @@ export default function HostEntryPage() {
       )}
 
       <p className="relative max-w-md text-center font-bold text-mute">
-        افتح هذي الصفحة على الجهاز الموصول بالتلفزيون. الجوالات تدخل من صفحة «دخول لعبة».
+        افتح هذي الصفحة على الجهاز الموصول بالتلفزيون. الجوالات تدخل بمسح الـQR اللي يطلع في الغرفة.
       </p>
     </main>
   );

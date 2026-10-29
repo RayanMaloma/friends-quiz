@@ -283,6 +283,155 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
+   Home — sun-yellow stage, one big title, one button, the whole group standing
+   on a cream mound at the bottom. Lineup slots come from CrewLineup as
+   --{p|t|d}-{l,b,w,s,z} (phone / tablet / desktop+TV) and --{p|t|d}-ratio.
+   --------------------------------------------------------------------------- */
+.home {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  overflow: hidden;
+  background-color: var(--color-sun);
+  background-image: radial-gradient(rgb(32 22 58 / 0.1) 1.3px, transparent 1.6px);
+  background-size: 22px 22px;
+}
+.home-rays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-conic-gradient(from 0deg at 50% 78%, rgb(255 255 255 / 0.28) 0deg 6deg, transparent 6deg 15deg);
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 78%, #000 25%, transparent 75%);
+  mask-image: radial-gradient(120% 90% at 50% 78%, #000 25%, transparent 75%);
+}
+
+.home-top {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: max(clamp(0.9rem, 2.4dvh, 2.2rem), env(safe-area-inset-top));
+  padding-inline: max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-left), env(safe-area-inset-right));
+}
+.home-gear {
+  display: grid;
+  place-items: center;
+  width: clamp(2.6rem, 2vw + 1.6rem, 3.6rem);
+  aspect-ratio: 1;
+  border: 3px solid var(--color-ink);
+  border-radius: 999px;
+  background: var(--color-card);
+  color: var(--color-ink);
+  box-shadow: 0 3px 0 var(--color-ink);
+  transition: rotate 300ms ease, translate 100ms ease, box-shadow 100ms ease;
+}
+.home-gear svg { width: 52%; }
+.home-gear:active { translate: 0 3px; box-shadow: 0 0 0 var(--color-ink); }
+.home-gear:focus-visible { outline: 3px solid var(--color-ink); outline-offset: 3px; }
+
+.home-hero {
+  position: relative;
+  z-index: 30;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.75rem, 3.2dvh, 2.6rem);
+  padding: clamp(0.5rem, 3dvh, 2.5rem) 1rem clamp(0.5rem, 2.5dvh, 2rem);
+  text-align: center;
+}
+.home-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, min(14vw, 12dvh), 10rem);
+  line-height: 1.1;
+  color: var(--color-card);
+  -webkit-text-stroke: 0.07em var(--color-ink);
+  paint-order: stroke fill;
+  text-shadow: 0 0.07em 0 var(--color-ink);
+  rotate: -2deg;
+}
+.home-cta {
+  height: 2.3em;
+  padding-inline: 1.4em;
+  border-width: max(4px, 0.4vmin);
+  border-radius: 999px;
+  background: var(--color-pink);
+  color: var(--color-card);
+  font-size: clamp(1.3rem, min(4.2vw, 5dvh), 3.6rem);
+  box-shadow: 0 max(6px, 0.7vmin) 0 var(--color-ink);
+  transition: translate 120ms ease, transform 100ms ease, box-shadow 120ms ease, background-color 150ms ease;
+}
+.home-cta-arrow { display: inline-block; transition: translate 200ms ease; }
+.home-cta:focus-visible { outline: 4px solid var(--color-card); outline-offset: 4px; }
+
+@media (hover: hover) {
+  .home-gear:hover { rotate: 45deg; }
+  .home-cta:hover { translate: 0 -3px; box-shadow: 0 max(9px, 1vmin) 0 var(--color-ink); background: #ff6a9c; }
+  .home-cta:hover .home-cta-arrow { translate: -0.2em 0; }
+  .crew-item:hover .crew-fig { translate: 0 -4%; }
+}
+
+.crew-stage {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding-top: clamp(0.5rem, 2dvh, 2rem);
+}
+/* Cream mound the group stands on (full bleed, clipped by .home). */
+.crew-ground {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  bottom: 0;
+  height: 24%;
+  background-color: var(--color-cream);
+  background-image: radial-gradient(rgb(32 22 58 / 0.09) 1.3px, transparent 1.6px);
+  background-size: 22px 22px;
+  border-top: max(4px, 0.4vmin) solid var(--color-ink);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+}
+.crew {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: min(84vw, calc(var(--p-ratio) * 56dvh));
+  aspect-ratio: var(--p-ratio);
+}
+.crew-item {
+  position: absolute;
+  left: var(--p-l);
+  bottom: var(--p-b);
+  width: var(--p-w);
+  z-index: var(--p-z);
+  aspect-ratio: 5 / 6;
+  transform: scale(var(--p-s));
+  transform-origin: 50% 100%;
+}
+/* Wider than its slot so every portrait (≤ 1.08 : 1) is limited by height, not
+   width — same height = same scale for everyone; wide ones just overlap more. */
+.crew-fig {
+  position: absolute;
+  inset: 0 -15%;
+  transition: translate 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (min-width: 600px) {
+  .crew { width: min(86vw, calc(var(--t-ratio) * 50dvh)); aspect-ratio: var(--t-ratio); }
+  .crew-item { left: var(--t-l); bottom: var(--t-b); width: var(--t-w); z-index: var(--t-z); transform: scale(var(--t-s)); }
+}
+/* Laptops, TVs and landscape phones: one arched row. */
+@media (min-width: 1024px), (min-aspect-ratio: 4 / 3) {
+  .crew { width: min(90vw, calc(var(--d-ratio) * 48dvh)); aspect-ratio: var(--d-ratio); }
+  .crew-item { left: var(--d-l); bottom: var(--d-b); width: var(--d-w); z-index: var(--d-z); transform: scale(var(--d-s)); }
+}
+
+/* ---------------------------------------------------------------------------
    Admin dashboard — same palette, calmer surfaces: thinner outlines, small
    shadows, compact controls. (The TV/phone keep the chunky party look.)
    --------------------------------------------------------------------------- */

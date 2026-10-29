@@ -1,10 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
 import { initial, playerSwatch } from "@/lib/colors";
 
-export function Brand({ className = "" }: { className?: string }) {
+export function Brand({ className = "", chip = "bg-sun" }: { className?: string; chip?: string }) {
   return (
     <span className={`inline-flex items-center gap-[0.25em] font-display leading-none ${className}`}>
-      <span className="chunk-sm inline-block -rotate-6 bg-sun px-[0.3em] pb-[0.05em] pt-[0.2em]">ألعاب</span>
+      <span className={`chunk-sm inline-block -rotate-6 px-[0.3em] pb-[0.05em] pt-[0.2em] ${chip}`}>ألعاب</span>
       <span className="inline-block rotate-2">الشلّة</span>
     </span>
   );
