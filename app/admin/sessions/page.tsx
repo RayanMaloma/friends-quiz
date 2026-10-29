@@ -16,7 +16,7 @@ interface SessionRow {
   title: string;
   emoji: string;
   status: GameStatus | "PLAYING";
-  kind?: "quiz" | "deduction" | "mafia";
+  kind?: "quiz" | "deduction" | "mafia" | "invent";
   /** Deduction: current round. */
   round?: number | null;
   current_index: number;
@@ -106,7 +106,9 @@ export default function SessionsPage() {
                   </p>
                   <p className="text-xs font-bold text-mute">
                     <span className={live ? "text-mint" : ""}>{STATUS_LABEL[r.status]}</span>
-                    {r.kind === "deduction" || r.kind === "mafia"
+                    {r.kind === "invent"
+                      ? " · اخترع إجابتك"
+                      : r.kind === "deduction" || r.kind === "mafia"
                       ? ` · ${r.kind === "mafia" ? "مافيا" : "أدوار سرّية"}${r.round ? ` · الجولة ${r.round}` : ""}`
                       : r.status !== "LOBBY" && r.status !== "FINISHED" && ` · سؤال ${r.current_index + 1}/${r.total_questions}`}
                     {` · ${playersLabel(r.player_count)} · ${formatDate(r.created_at)}`}
@@ -118,7 +120,7 @@ export default function SessionsPage() {
                       فتح التلفزيون
                     </Link>
                   )}
-                  {r.kind !== "deduction" && r.kind !== "mafia" && (
+                  {r.kind !== "deduction" && r.kind !== "mafia" && r.kind !== "invent" && (
                     <button onClick={() => showResults(r)} disabled={busy === r.id} className="abtn abtn-sm">
                       النتائج
                     </button>

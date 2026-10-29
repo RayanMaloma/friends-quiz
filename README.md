@@ -65,6 +65,23 @@ by name). Migration: `supabase/migrations/20261018000000_deduction.sql`.
 
 The default content recreates the mechanics of *Secret Hitler* (CC BY-NC-SA 4.0) as editable data.
 
+## «اخترع إجابتك» (built-in)
+
+A bluffing / comedy game with 46 fixed questions (`lib/invent/questions.ts`, wording exactly as approved). Every round:
+question → everyone writes an answer on their phone → all answers appear anonymously in one shuffled
+two-column grid → everyone votes for someone else's → the same cards reveal their authors (diagonal gold tags),
+vote counts and points (**100 per vote received**, nothing else) → leaderboard → next question.
+
+- Host opens it from `/host` (card «اخترع إجابتك»). Lobby: QR + code, live player list (remove with ✕), match length
+  (1–46, default 36, random without repeats), answer timer (default 60s) and voting timer (default 30s): any whole number of seconds.
+- The host panel shows round, phase, countdown, answers/votes progress and connected players, and can pause/resume, skip the
+  phase, free a stuck seat, end the match (with confirmation) and **change either timer live**:
+  `remaining = max(0, duration − active time already played)` (pauses excluded), for the running phase and every later one.
+- Same architecture as Mafia: the engine (`lib/invent/engine.ts`) runs on the server, `/api/invent` checks every move and
+  saves with the `match_version` lock (simultaneous answers/votes retry; a round is scored once), and each device gets its own
+  view (`lib/invent/views.ts`): no answer text before voting, no authors or vote counts before the reveal, never who voted for whom.
+- Migration: `supabase/migrations/20261029000000_invent.sql` (schema version 6).
+
 ## Pages
 
 | URL | Who | What |
@@ -80,6 +97,8 @@ The default content recreates the mechanics of *Secret Hitler* (CC BY-NC-SA 4.0)
 | `/admin/dx/[id]` | admin | Hidden-role game editor (autosaves) |
 | `/dx/host/[id]` | TV | Hidden-role game: lobby, board, public steps |
 | `/dx/play/[id]` | players | Hidden-role game: the private phone screen |
+| `/invent/host/[id]` | host screen | «اخترع إجابتك»: lobby, rounds, host panel, results |
+| `/invent/join`, `/invent/play/[id]` | players | «اخترع إجابتك»: join, answer, vote, standings |
 
 ## How it works
 
@@ -129,7 +148,7 @@ npm run dev
 ### Supabase
 
 1. **SQL Editor** → run each file in `supabase/migrations/` **in order** (all are safe to re-run):
-   `20261004000000_init.sql`, `20261004010000_open_players.sql`, **`20261009000000_platform.sql`**, **`20261018000000_deduction.sql`** (hidden-role games).
+   `20261004000000_init.sql`, `20261004010000_open_players.sql`, **`20261009000000_platform.sql`**, **`20261018000000_deduction.sql`** (hidden-role games), `20261028000000_mafia.sql`, **`20261029000000_invent.sql`** (اخترع إجابتك).
    Already ran the first two? Just run the third. It replaces the old session tables (old rooms are
    dropped). With the Supabase CLI: `supabase db push`.
    The dashboard shows a warning until this migration is applied.

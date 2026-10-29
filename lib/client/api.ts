@@ -5,7 +5,7 @@ export type ApiResult<T> =
 const TIMEOUT_MS = 10000;
 
 export async function api<T = Record<string, unknown>>(
-  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia",
+  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia" | "/api/invent",
   body: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
   const controller = new AbortController();
@@ -34,7 +34,7 @@ export async function api<T = Record<string, unknown>>(
 }
 
 /** Errors that mean "this device can't continue in this game" (vs. transient). */
-export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION", "MAFIA_SESSION"]);
+export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION", "MAFIA_SESSION", "INVENT_SESSION"]);
 
 const MESSAGES: Record<string, string> = {
   GAME_NOT_FOUND: "رمز اللعبة غير صحيح",
@@ -78,6 +78,13 @@ const MESSAGES: Record<string, string> = {
   MF_TARGET: "ما تقدر تختار هذا الشخص",
   MF_LOCKED: "حققت مع شخص الليلة خلاص",
   MF_INTRO: "اللعبة بتبدأ بعد لحظات…",
+  IV_CLOSED: "انقفلت هالمرحلة، تابع الشاشة",
+  IV_EMPTY: "اكتب إجابتك (لين ٢٠٠ حرف)",
+  IV_ANSWERED: "أرسلت إجابتك خلاص",
+  IV_VOTED: "صوّتت خلاص",
+  IV_OWN_ANSWER: "ما تقدر تصوّت لإجابتك 😏",
+  IV_BAD_CHOICE: "اختيار غير صالح",
+  IV_NOT_SEATED: "دخلت بعد ما بدأت الجولة، انتظر المباراة الجاية",
 };
 
 /** Like errorMessage, but prefers the server's own explanation (game rule errors). */

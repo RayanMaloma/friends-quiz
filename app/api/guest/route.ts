@@ -95,6 +95,7 @@ export async function POST(req: Request) {
       // Deduction rooms have their own controller (/dx/play/[id], /api/dx).
       if (snapshot.session.kind === "deduction") return fail("DX_SESSION", 409);
       if (snapshot.session.kind === "mafia") return fail("MAFIA_SESSION", 409);
+      if (snapshot.session.kind === "invent") return fail("INVENT_SESSION", 409);
       const player = snapshot.players.find((p) => p.token_hash === tokenHash);
       const view = player ? buildGuestView(snapshot, player.id) : null;
       if (!view) return fail("NOT_A_PLAYER", 401);

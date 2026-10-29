@@ -48,6 +48,7 @@ export async function POST(req: Request) {
       // Deduction rooms have their own TV screen (/dx/host/[id], /api/dx).
       if (snapshot.session.kind === "deduction") return fail("DX_SESSION", 409);
       if (snapshot.session.kind === "mafia") return fail("MAFIA_SESSION", 409);
+      if (snapshot.session.kind === "invent") return fail("INVENT_SESSION", 409);
       return ok({ view: buildHostView(snapshot) });
     };
 

@@ -143,9 +143,10 @@ function HostGame({ creds }: { creds: HostCreds }) {
   useEffect(() => {
     if (fatalError === "DX_SESSION") window.location.replace(`/dx/host/${sessionId}`);
     if (fatalError === "MAFIA_SESSION") window.location.replace(`/mafia/host/${sessionId}`);
+    if (fatalError === "INVENT_SESSION") window.location.replace(`/invent/host/${sessionId}`);
   }, [fatalError, sessionId]);
 
-  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION") return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
+  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION" || fatalError === "INVENT_SESSION") return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
   if (fatalError) {
     return (
       <FullScreenCenter>

@@ -16,7 +16,7 @@ export default function HostEntryPage() {
   const router = useRouter();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
-  const [resumable, setResumable] = useState<(HostCreds & { dx?: boolean; mafia?: boolean }) | null>(null);
+  const [resumable, setResumable] = useState<(HostCreds & { dx?: boolean; mafia?: boolean; invent?: boolean }) | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -53,23 +53,28 @@ export default function HostEntryPage() {
           void api<{ view: { status: string } }>("/api/mafia", { action: "state", as: "host", ...last }).then((mf) => {
             if (mf.ok && mf.view.status !== "FINISHED") setResumable({ ...last, mafia: true });
           });
+        } else if (!res.ok && res.error === "INVENT_SESSION") {
+          void api<{ view: { status: string } }>("/api/invent", { action: "state", as: "host", ...last }).then((iv) => {
+            if (iv.ok && iv.view.status !== "FINISHED") setResumable({ ...last, invent: true });
+          });
         }
       });
     }
   }, [load]);
 
-  async function startMafia() {
+  /** The built-in games (Mafia, اخترع إجابتك): no game to pick, the rules live in code. */
+  async function startBuiltIn(kind: "mafia" | "invent") {
     if (creating) return;
-    setCreating("mafia");
+    setCreating(kind);
     setError(null);
-    const res = await api<{ sessionId: string; code: string; hostToken: string }>("/api/mafia", { action: "create" });
+    const res = await api<{ sessionId: string; code: string; hostToken: string }>(`/api/${kind}`, { action: "create" });
     if (!res.ok) {
       setError(errorMessage(res.error));
       setCreating(null);
       return;
     }
     hostStore.save({ sessionId: res.sessionId, code: res.code, hostToken: res.hostToken });
-    router.push(`/mafia/host/${res.sessionId}`);
+    router.push(`/${kind}/host/${res.sessionId}`);
   }
 
   async function start(gameId: string) {
@@ -103,7 +108,7 @@ export default function HostEntryPage() {
       <Brand className="anim-pop relative text-7xl" />
 
       {resumable && (
-        <Link href={resumable.mafia ? `/mafia/host/${resumable.sessionId}` : resumable.dx ? `/dx/host/${resumable.sessionId}` : `/host/${resumable.sessionId}`} className="btn btn-primary anim-rise relative h-20 px-10 text-3xl">
+        <Link href={resumable.invent ? `/invent/host/${resumable.sessionId}` : resumable.mafia ? `/mafia/host/${resumable.sessionId}` : resumable.dx ? `/dx/host/${resumable.sessionId}` : `/host/${resumable.sessionId}`} className="btn btn-primary anim-rise relative h-20 px-10 text-3xl">
           كمّل اللعبة الحالية ({resumable.code})
         </Link>
       )}
@@ -111,7 +116,8 @@ export default function HostEntryPage() {
       <section className="relative flex w-full max-w-5xl flex-col gap-4">
         <h1 className="text-center font-display text-4xl">وش نلعب اليوم؟</h1>
         {error && <p className="text-center font-bold text-pink">{error}</p>}
-        <MafiaCard creating={creating} onStart={startMafia} />
+        <InventCard creating={creating} onStart={() => startBuiltIn("invent")} />
+        <MafiaCard creating={creating} onStart={() => startBuiltIn("mafia")} />
         {games === null ? (
           <Spinner className="mx-auto size-8 text-ink" />
         ) : published.length === 0 ? (
@@ -198,6 +204,27 @@ function MafiaCard({ creating, onStart }: { creating: string | null; onStart: ()
       <span className="flex min-w-0 flex-col gap-1">
         <span className="font-display text-4xl leading-tight" style={{ color: "#C3A46B" }}>المافيا</span>
         <span className="text-sm font-bold opacity-80">قتلة، شايب، طبيب ومواطنين · ٤–١٢ لاعب · التلفزيون هو الراوي</span>
+      </span>
+      <span className="ms-auto hidden font-display text-xl opacity-70 group-hover:opacity-100 sm:block">افتح الغرفة ←</span>
+    </button>
+  );
+}
+
+/** The built-in «اخترع إجابتك» game (46 fixed questions, settings in its own lobby). */
+function InventCard({ creating, onStart }: { creating: string | null; onStart: () => void }) {
+  return (
+    <button
+      onClick={onStart}
+      disabled={!!creating}
+      className="anim-rise group relative flex w-full items-center gap-5 overflow-hidden rounded-3xl border-4 border-ink p-6 text-start shadow-[6px_6px_0_#1b1b1b] transition-transform hover:-translate-y-1 disabled:opacity-60"
+      style={{ background: "radial-gradient(120% 140% at 85% 0%, #3a2a0c 0%, #17181d 50%, #0c0d10 100%)", color: "#f3ead8" }}
+    >
+      <span className="grid size-20 shrink-0 rotate-[-6deg] place-items-center rounded-2xl text-5xl" style={{ background: "#f5c242", color: "#17181d" }}>
+        {creating === "invent" ? <Spinner className="size-8" /> : "💡"}
+      </span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="font-display text-4xl leading-tight" style={{ color: "#f5c242" }}>اخترع إجابتك</span>
+        <span className="text-sm font-bold opacity-80">كل واحد يألّف جواب، والكل يصوّت للأضحك · ٣–١٦ لاعب · ٤٦ سؤال</span>
       </span>
       <span className="ms-auto hidden font-display text-xl opacity-70 group-hover:opacity-100 sm:block">افتح الغرفة ←</span>
     </button>

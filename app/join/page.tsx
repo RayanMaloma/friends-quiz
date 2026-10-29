@@ -18,7 +18,7 @@ export default function JoinPage() {
 
 type LookupResponse = {
   sessionId: string;
-  kind: "quiz" | "deduction" | "mafia";
+  kind: "quiz" | "deduction" | "mafia" | "invent";
   title: string;
   emoji: string;
   accent: Accent;
@@ -65,6 +65,10 @@ function Join() {
       // Mafia rooms have their own (dark) join screen.
       if (res.kind === "mafia") {
         router.replace(`/mafia/join?code=${value}`);
+        return;
+      }
+      if (res.kind === "invent") {
+        router.replace(`/invent/join?code=${value}`);
         return;
       }
       // Already joined this game on this device? Go straight back in.
@@ -117,6 +121,9 @@ function Join() {
       else if (!res.ok && res.error === "MAFIA_SESSION") {
         void api<{ view: { status: string } }>("/api/mafia", { action: "state", as: "guest", sessionId: last.sessionId, playerToken: last.playerToken })
           .then((mf) => { if (mf.ok && mf.view.status !== "FINISHED") setResume(last); });
+      } else if (!res.ok && res.error === "INVENT_SESSION") {
+        void api<{ view: { status: string } }>("/api/invent", { action: "state", as: "guest", sessionId: last.sessionId, playerToken: last.playerToken })
+          .then((iv) => { if (iv.ok && iv.view.status !== "FINISHED") setResume(last); });
       }
     });
   }, [codeParam, doLookup]);
