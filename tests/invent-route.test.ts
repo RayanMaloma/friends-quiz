@@ -150,8 +150,7 @@ describe("/api/invent", () => {
     const room = await openRoom();
     await room.host("settings", { rounds: 2 });
     await room.host("start");
-    await age(room.sessionId, 5000); // past the question intro
-    let h = await room.host("state");
+        let h = await room.host("state");
     expect(h.body.view!.game!.phase).toBe("answering");
 
     // Answers stay hidden: a phone sees only its own, the host only counts.
@@ -219,7 +218,7 @@ describe("/api/invent", () => {
   it("host timer edits apply to the running phase and reach every device", async () => {
     const room = await openRoom();
     await room.host("start");
-    await age(room.sessionId, 4000 + 10000); // 10s into answering
+    await age(room.sessionId, 10000); // 10s into answering
     let h = await room.host("host", { move: { type: "timers", answerSeconds: 24 } });
     const remaining = h.body.view!.game!.timer!.remainingMs;
     expect(remaining).toBeGreaterThan(13000);
@@ -243,7 +242,6 @@ describe("/api/invent", () => {
   it("end early, rematch with fresh scores, back to the lobby, close", async () => {
     const room = await openRoom();
     await room.host("start");
-    await age(room.sessionId, 5000);
     await room.guest("الدحام", "act", { move: { type: "answer", round: 0, text: "جواب" } });
     let h = await room.host("host", { move: { type: "end" } });
     expect(h.body.view!.game!.phase).toBe("final");
@@ -252,7 +250,7 @@ describe("/api/invent", () => {
 
     h = await room.host("rematch");
     expect(h.body.view!.game!.matchId).not.toBe(first);
-    expect(h.body.view!.game!.phase).toBe("question");
+    expect(h.body.view!.game!.phase).toBe("answering");
     expect(h.body.view!.game!.standings.every((s) => s.score === 0)).toBe(true);
     // Rematch only from the final results.
     expect((await room.host("rematch")).body.view!.game!.matchId).toBe(h.body.view!.game!.matchId);
@@ -270,7 +268,6 @@ describe("/api/invent", () => {
   it("a returning device keeps its identity; a freed seat can be reclaimed by name", async () => {
     const room = await openRoom();
     await room.host("start");
-    await age(room.sessionId, 5000);
     await room.guest("العمري", "act", { move: { type: "answer", round: 0, text: "رجعت" } });
     const again = await room.guest("العمري", "state");
     expect(again.body.view!.myAnswer).toBe("رجعت");

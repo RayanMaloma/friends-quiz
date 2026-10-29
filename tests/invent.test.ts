@@ -39,11 +39,11 @@ function ok(res: { doc?: InventDoc; error?: string }): InventDoc {
 
 const game = (d: InventDoc): InventGame => d.game!;
 
-/** A match at t=0, moved into the answering phase. */
+/** A match started at t=0: rounds open straight into answering. */
 function answering(settings = DEFAULT_SETTINGS, players = PLAYERS) {
-  let d = ok(startGame(newDoc(settings), players, 0, seeded()));
-  d = advance(d, 4000, ALL); // question (4s) → answering
+  const d = ok(startGame(newDoc(settings), players, 0, seeded()));
   expect(game(d).phase).toBe("answering");
+  expect(remainingMs(d, 0)).toBe(settings.answerSeconds * 1000);
   return d;
 }
 
@@ -135,9 +135,25 @@ describe("answers", () => {
     expect(game(d).round.answers).toHaveLength(1);
   });
 
-  it("refuses answers outside the answering phase", () => {
+  it("opens the answer box the moment the round starts (no question-only intro)", () => {
     const d = ok(startGame(newDoc(), PLAYERS, 0));
-    expect(applyPlayerMove(d, "p0", { type: "answer", round: 0, text: "مبكر" }, 100).error).toBe("IV_CLOSED");
+    expect(game(d).phase).toBe("answering");
+    expect(applyPlayerMove(d, "p0", { type: "answer", round: 0, text: "فورًا" }, 0).doc).toBeDefined();
+  });
+
+  it("refuses answers outside the answering phase", () => {
+    let d = advance(answerAll(answering(), 1000), 1000, ALL);
+    expect(game(d).phase).toBe("voting");
+    d = ok(applyPlayerMove(d, "p0", { type: "vote", round: 0, answerId: answerIdOf(d, "p1") }, 1000));
+    expect(applyPlayerMove(d, "late", { type: "answer", round: 0, text: "متأخر" }, 1000).error).toBe("IV_NOT_SEATED");
+    const fresh = advance(answering(), 60000, ALL); // no answers → reveal
+    expect(applyPlayerMove(fresh, "p0", { type: "answer", round: 0, text: "متأخر" }, 60000).error).toBe("IV_CLOSED");
+  });
+
+  it("carries a room saved mid-intro (old format) straight into answering", () => {
+    const d = answering();
+    const legacy = { ...d, game: { ...game(d), phase: "question" as never } };
+    expect(game(advance(legacy, 1000, ALL)).phase).toBe("answering");
   });
 
   it("moves to voting as soon as everyone answered, with one shuffled order", () => {
@@ -151,7 +167,7 @@ describe("answers", () => {
   it("moves on at the deadline with the answers that arrived (no fake answers)", () => {
     let d = answering();
     d = answerAll(d, 6000, PLAYERS.slice(0, 3));
-    d = advance(d, 4000 + 60000 + 1, ALL);
+    d = advance(d, 60000 + 1, ALL);
     expect(game(d).phase).toBe("voting");
     expect(game(d).round.answers).toHaveLength(3);
   });
@@ -211,20 +227,20 @@ describe("voting and scoring", () => {
 
   it("skips voting with fewer than two answers (zero points)", () => {
     let d = answerAll(answering(), 6000, PLAYERS.slice(0, 1));
-    d = advance(d, 4000 + 60000, ALL);
+    d = advance(d, 60000, ALL);
     expect(game(d).phase).toBe("reveal");
     expect(game(d).round.votingSkipped).toBe(true);
     expect(Object.values(game(d).scores).every((s) => s === 0)).toBe(true);
 
     let none = answering();
-    none = advance(none, 4000 + 60000, ALL);
+    none = advance(none, 60000, ALL);
     expect(game(none).phase).toBe("reveal");
     expect(game(none).round.answers).toHaveLength(0);
   });
 
   it("a player without an answer can still vote; voting ends once every possible voter voted", () => {
     let d = answerAll(answering(), 6000, PLAYERS.slice(0, 2));
-    d = advance(d, 4000 + 60000, ALL);
+    d = advance(d, 60000, ALL);
     expect(game(d).phase).toBe("voting");
     // p0 and p1 can vote for each other; p2..p5 for either.
     for (const p of PLAYERS) {
@@ -241,21 +257,21 @@ describe("voting and scoring", () => {
 describe("timers", () => {
   it("shortening the running phase keeps elapsed time: 60s → 24s after 10s leaves 14s", () => {
     let d = answering();
-    expect(remainingMs(d, 14000)).toBe(50000);
-    d = ok(applyHostMove(d, { type: "timers", answerSeconds: 24 }, 14000));
-    expect(remainingMs(d, 14000)).toBe(14000);
+    expect(remainingMs(d, 10000)).toBe(50000);
+    d = ok(applyHostMove(d, { type: "timers", answerSeconds: 24 }, 10000));
+    expect(remainingMs(d, 10000)).toBe(14000);
     expect(d.settings.answerSeconds).toBe(24);
-    expect(game(advance(d, 27999, ALL)).phase).toBe("answering");
-    // No answers: the round closes at exactly 4s + 24s (straight to the reveal).
-    const closed = game(advance(d, 30000, ALL));
+    expect(game(advance(d, 23999, ALL)).phase).toBe("answering");
+    // No answers: the round closes at exactly 24s (straight to the reveal).
+    const closed = game(advance(d, 26000, ALL));
     expect(closed.phase).toBe("reveal");
-    expect(closed.phaseStartedAt).toBe(28000);
+    expect(closed.phaseStartedAt).toBe(24000);
   });
 
   it("lengthening adds time; shortening below elapsed closes the phase at once", () => {
     let d = answering();
-    d = ok(applyHostMove(d, { type: "timers", answerSeconds: 90 }, 14000));
-    expect(remainingMs(d, 14000)).toBe(80000);
+    d = ok(applyHostMove(d, { type: "timers", answerSeconds: 90 }, 10000));
+    expect(remainingMs(d, 10000)).toBe(80000);
     const answers = answerAll(d, 15000, PLAYERS.slice(0, 2));
     const cut = ok(applyHostMove(answers, { type: "timers", answerSeconds: 5 }, 20000));
     const after = advance(cut, 20000, ALL);
@@ -272,7 +288,7 @@ describe("timers", () => {
 
   it("pause freezes the clock, blocks timer transitions, and resume continues", () => {
     let d = answering();
-    d = ok(applyHostMove(d, { type: "pause" }, 14000));
+    d = ok(applyHostMove(d, { type: "pause" }, 10000));
     expect(remainingMs(d, 100000)).toBe(50000);
     expect(game(advance(d, 500000, ALL)).phase).toBe("answering");
     // Editing while paused uses no paused time.
@@ -300,8 +316,6 @@ describe("full match", () => {
     const all = new Set(["p0", "p1", "p2"]);
     let t = 0;
     for (let round = 0; round < 3; round++) {
-      t += 4000;
-      d = advance(d, t, all);
       expect(game(d).phase).toBe("answering");
       expect(game(d).round.index).toBe(round);
       d = answerAll(d, t, PLAYERS.slice(0, 3));

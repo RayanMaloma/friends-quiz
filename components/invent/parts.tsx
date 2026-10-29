@@ -69,7 +69,6 @@ export function Countdown({ ms, total, paused, size = "4.5rem" }: { ms: number |
 /* ------------------------------------------------------------------ */
 
 export const PHASE_LABEL: Record<Phase, string> = {
-  question: "السؤال",
   answering: "وقت الإجابة",
   voting: "وقت التصويت",
   reveal: "مين كتب وش؟",
@@ -87,13 +86,6 @@ export function votesLabel(n: number): string {
 
 export const pointsLabel = (n: number) => `+${n} نقطة`;
 
-export function RoundLabel({ index, total }: { index: number; total: number }) {
-  return (
-    <span className="iv-round">
-      الجولة <b>{index + 1}</b> من {total}
-    </span>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /* Answer cards (voting and reveal: same component, same order)        */
@@ -230,7 +222,7 @@ export function Standings({ rows, meId, showGain = true }: { rows: Standing[]; m
         >
           <span className="rank">{r.rank}</span>
           <span className="name">{r.name}</span>
-          {showGain ? <span className={`gain ${r.gained ? "" : "is-zero"}`}>{r.gained ? `+${r.gained}` : "+0"}</span> : <span />}
+          {showGain ? <span className={`gain ${r.gained ? "" : "is-zero"}`} dir="ltr">{r.gained ? `+${r.gained}` : "+0"}</span> : <span />}
           <span className="score">{r.score}</span>
         </li>
       ))}

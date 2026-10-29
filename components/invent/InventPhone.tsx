@@ -7,7 +7,7 @@ import { playerStore, type PlayerCreds } from "@/lib/client/storage";
 import { useGameSync } from "@/lib/client/useGameSync";
 import { useWakeLock } from "@/lib/client/useWakeLock";
 import type { InventGuestView, InventPublicGame } from "@/lib/invent/views";
-import { AnswerCards, Countdown, Podium, RoundLabel, Standings, timeLeft, useDeadlineRefresh, useServerNow } from "./parts";
+import { AnswerCards, Countdown, Standings, timeLeft, useDeadlineRefresh, useServerNow } from "./parts";
 
 const vibrate = (ms: number) => {
   try {
@@ -65,24 +65,25 @@ export function InventPhone({ creds }: { creds: PlayerCreds }) {
       <div className="iv-phone">
         <header className="iv-phone-head">
           <span className="iv-wordmark text-xl">اخترع إجابتك 💡</span>
+          {g && g.phase !== "final" && view.seated && (
+            <span className="iv-round-pill" dir="ltr" aria-label={`الجولة ${g.roundIndex + 1} من ${g.totalRounds}`}>
+              {g.roundIndex + 1}/{g.totalRounds}
+            </span>
+          )}
           <span className="ms-auto" />
           {!connected && <span className="iv-error text-xs">نعيد الاتصال…</span>}
           <span className="me iv-chip">{view.me.name}</span>
         </header>
         {view.status === "FINISHED" ? (
-          <Center emoji="👋" title="الغرفة انقفلت" text="شكرًا على اللعب!" />
+          <Center emoji="👋" title="انتهت" />
         ) : !g ? (
-          <Center
-            emoji="🎉"
-            title="أنت داخل!"
-            text={`انتظر المضيف يبدأ اللعبة · ${view.lobby.filter((p) => p.active).length} لاعبين في الغرفة`}
-          />
+          <Center emoji="🎉" title="أنت داخل!" text={`${view.lobby.filter((p) => p.active).length} لاعبين`} />
         ) : !view.seated ? (
-          <Center emoji="👀" title="المباراة شغّالة" text="دخلت بعد ما بدأت. تابع الشاشة، وبتلعب المباراة الجاية." />
+          <Center emoji="👀" title="تلعب المباراة الجاية" />
         ) : (
           <Round view={view} game={g} receivedAt={receivedAt} act={act} />
         )}
-        {g?.paused && g.phase !== "final" && <div className="iv-paused" role="status">⏸ المضيف أوقف اللعبة مؤقتًا</div>}
+        {g?.paused && g.phase !== "final" && <div className="iv-paused" role="status">⏸ متوقفة</div>}
       </div>
     </div>
   );
@@ -106,27 +107,18 @@ type Act = (move: Record<string, unknown>) => Promise<string | null>;
 function Round({ view, game, receivedAt, act }: { view: InventGuestView; game: InventPublicGame; receivedAt: number; act: Act }) {
   const now = useServerNow(view.serverNow, receivedAt);
   const ms = timeLeft(game.timer, now);
+  const timed = game.phase === "answering" || game.phase === "voting";
+  // One question block per screen, with the timer beside it while there is one.
   const head = (
-    <>
-      <div className="flex items-center gap-3">
-        <RoundLabel index={game.roundIndex} total={game.totalRounds} />
-        <span className="ms-auto" />
-        {game.timer && (game.phase === "answering" || game.phase === "voting") && (
-          <Countdown ms={ms} total={game.timer.durationMs} paused={game.paused} size="3.6rem" />
-        )}
-      </div>
-      <p className="iv-question" dir="auto">{game.question.text}</p>
-    </>
+    <div className="iv-qhead">
+      <p className="iv-question" dir="auto">
+        {game.question.text}
+      </p>
+      {timed && game.timer && <Countdown ms={ms} total={game.timer.durationMs} paused={game.paused} size="3.4rem" />}
+    </div>
   );
 
   switch (game.phase) {
-    case "question":
-      return (
-        <Center emoji="🤔" title={`الجولة ${game.roundIndex + 1} من ${game.totalRounds}`}>
-          <p className="iv-question m-0 text-2xl" dir="auto">{game.question.text}</p>
-          <p className="iv-mute m-0 font-bold">فكّر بجواب يضحّك… مربع الإجابة يفتح بعد ثواني</p>
-        </Center>
-      );
     case "answering":
       return (
         <>
@@ -146,53 +138,27 @@ function Round({ view, game, receivedAt, act }: { view: InventGuestView; game: I
       return (
         <>
           {head}
-          {mine ? (
-            <p className="iv-progress m-0 text-xl">
-              إجابتك جابت <b>{mine.points ?? 0}</b> نقطة
+          {mine && (
+            <p className="iv-gain" dir="ltr" aria-label={`إجابتك جابت ${mine.points ?? 0} نقطة`}>
+              +{mine.points ?? 0}
             </p>
-          ) : (
-            <p className="iv-mute m-0 font-bold">ما أرسلت إجابة هالجولة.</p>
           )}
-          {game.votingSkipped && <p className="iv-mute m-0 font-bold">إجابة وحدة بس، ما فيه تصويت هالجولة.</p>}
-          {game.cards && game.cards.length > 0 ? (
-            <AnswerCards cards={game.cards} votedId={view.myVote} />
-          ) : (
-            <Center emoji="😶" title="ما وصلت ولا إجابة" />
-          )}
+          {game.cards && game.cards.length > 0 ? <AnswerCards cards={game.cards} votedId={view.myVote} /> : <p className="iv-empty">ما وصلت إجابات</p>}
+          {game.votingSkipped && <p className="iv-empty">إجابة وحدة — بدون نقاط</p>}
         </>
       );
     }
-    case "leaderboard": {
-      const me = game.standings.find((r) => r.playerId === view.me.playerId);
-      return (
-        <>
-          <div className="text-center">
-            <p className="iv-eyebrow m-0">ترتيبك</p>
-            <p className="iv-wordmark m-0 text-6xl">{me?.rank ?? "—"}</p>
-            <p className="iv-mute m-0 font-bold">
-              {me?.score ?? 0} نقطة {me && me.gained > 0 ? `(+${me.gained} هالجولة)` : ""}
-            </p>
-          </div>
-          <Standings rows={game.standings} meId={view.me.playerId} />
-        </>
-      );
-    }
+    case "leaderboard":
+      return <Standings rows={game.standings} meId={view.me.playerId} />;
     case "final": {
-      const me = game.standings.find((r) => r.playerId === view.me.playerId);
       const won = game.winners.includes(view.me.playerId);
       const names = game.standings.filter((r) => game.winners.includes(r.playerId)).map((r) => r.name);
       return (
         <>
-          <div className="iv-pop text-center">
-            <span className="iv-big-emoji">{won ? "🏆" : "👏"}</span>
-            <h1 className="iv-wordmark m-0 text-4xl">{won ? (names.length > 1 ? "فوز مشترك!" : "أنت الفائز!") : names.length === 0 ? "ما أحد جمع نقاط" : `الفائز: ${names.join(" و ")}`}</h1>
-            <p className="iv-mute m-0 font-bold">
-              ترتيبك {me?.rank ?? "—"} · {me?.score ?? 0} نقطة
-            </p>
-          </div>
-          <Podium rows={game.standings} />
+          <h1 className="iv-wordmark iv-pop m-0 text-center text-4xl">
+            {won ? (names.length > 1 ? "🏆 فوز مشترك" : "🏆 فزت!") : names.length === 0 ? "ما أحد جمع نقاط" : `🏆 ${names.join(" و ")}`}
+          </h1>
           <Standings rows={game.standings} meId={view.me.playerId} showGain={false} />
-          <p className="iv-mute text-center text-sm font-bold">لو المضيف بدأ مباراة جديدة بتنتقل لها تلقائيًا.</p>
         </>
       );
     }
@@ -210,14 +176,9 @@ function AnswerBox({ view, game, act }: { view: InventGuestView; game: InventPub
 
   if (view.myAnswer !== null) {
     return (
-      <Center emoji="✅" title="تم إرسال إجابتك، انتظر البقية!">
-        <p className="iv-panel m-0 w-full p-4 text-lg font-extrabold" dir="auto">
-          {view.myAnswer}
-        </p>
-        <p className="iv-progress m-0">
-          <b>{game.answeredCount}</b> من {game.playerCount} جاوبوا
-        </p>
-      </Center>
+      <p className="iv-sent iv-pop" role="status">
+        <span aria-hidden>✓</span> تم الإرسال
+      </p>
     );
   }
 
@@ -235,17 +196,15 @@ function AnswerBox({ view, game, act }: { view: InventGuestView; game: InventPub
   }
 
   return (
-    <form className="flex flex-1 flex-col gap-2" onSubmit={submit}>
-      <label htmlFor="iv-answer" className="iv-eyebrow">
-        اخترع إجابتك
-      </label>
+    <form className="iv-answer-form" onSubmit={submit}>
       <textarea
         id="iv-answer"
+        aria-label="إجابتك"
         className="iv-textarea"
         dir="auto"
         value={text}
         maxLength={max * 2}
-        placeholder="اكتب أضحك جواب يخطر ببالك…"
+        placeholder="إجابتك…"
         enterKeyHint="send"
         onChange={(e) => {
           setText([...e.target.value].slice(0, max).join(""));
@@ -279,17 +238,18 @@ function Voting({ view, game, act }: { view: InventGuestView; game: InventPublic
 
   if (!view.canVote) {
     return (
-      <Center emoji="⏳" title="ما فيه إجابات تصوّت لها" text="انتظر البقية يصوّتون…">
+      <>
+        <p className="iv-hint-line">⏳ ما فيه إجابات تصوّت لها</p>
         <AnswerCards cards={cards} />
-      </Center>
+      </>
     );
   }
 
   if (view.myVote) {
     return (
       <>
-        <p className="iv-progress m-0 text-center text-lg">
-          صوتك وصل 🗳️ · <b>{game.votedCount}</b> من {game.voterCount} صوّتوا
+        <p className="iv-sent is-inline" role="status">
+          <span aria-hidden>✓</span> صوتك وصل
         </p>
         <AnswerCards cards={cards} votedId={view.myVote} />
       </>
@@ -310,7 +270,7 @@ function Voting({ view, game, act }: { view: InventGuestView; game: InventPublic
 
   return (
     <>
-      <p className="iv-eyebrow m-0">اختار أضحك إجابة (ما تقدر تختار إجابتك)</p>
+      <p className="iv-hint-line">صوّت لأفضل إجابة</p>
       <AnswerCards cards={cards} selectable selectedId={picked} onSelect={(id) => setPicked(id)} />
       {error && (
         <p className="iv-error m-0" role="alert">
@@ -320,7 +280,7 @@ function Voting({ view, game, act }: { view: InventGuestView; game: InventPublic
       <div className="iv-sticky-action mt-auto">
         <button type="button" className="iv-btn iv-btn-gold iv-btn-lg iv-btn-block" disabled={!picked || busy} onClick={confirm}>
           {busy && <span className="iv-loader" />}
-          {picked ? "أكّد صوتك" : "اختار إجابة"}
+          صوّت
         </button>
       </div>
     </>

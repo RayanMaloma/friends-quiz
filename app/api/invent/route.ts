@@ -41,7 +41,7 @@ export const dynamic = "force-dynamic";
  */
 
 const MAX_ATTEMPTS = 8;
-const PHASES: Phase[] = ["question", "answering", "voting", "reveal", "leaderboard", "final"];
+const PHASES: Phase[] = ["answering", "voting", "reveal", "leaderboard", "final"];
 
 type Actor = { kind: "host" } | { kind: "player"; id: string };
 type Identified = { snapshot: Snapshot; actor: Actor } | { error: Response };

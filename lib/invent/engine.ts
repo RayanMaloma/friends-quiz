@@ -26,12 +26,11 @@ export const DEFAULT_ANSWER_SECONDS = 60;
 export const DEFAULT_VOTE_SECONDS = 30;
 export const MAX_TIMER_SECONDS = 3600;
 export const MAX_ANSWER_LENGTH = 200;
-/** "الجولة 12 من 36" + the question, before the answer box opens. */
-export const QUESTION_MS = 4000;
 export const REVEAL_MS = 10000;
 export const LEADERBOARD_MS = 8000;
 
-export type Phase = "question" | "answering" | "voting" | "reveal" | "leaderboard" | "final";
+/** A round opens straight into answering: the question and the answer box arrive together. */
+export type Phase = "answering" | "voting" | "reveal" | "leaderboard" | "final";
 
 export interface InventSettings {
   rounds: number;
@@ -159,8 +158,6 @@ export function cleanAnswer(raw: unknown): string | null {
 /** How long the current phase lasts (live: follows the settings). null = no timer. */
 export function phaseDurationMs(doc: InventDoc, phase: Phase): number | null {
   switch (phase) {
-    case "question":
-      return QUESTION_MS;
     case "answering":
       return doc.settings.answerSeconds * 1000;
     case "voting":
@@ -256,8 +253,6 @@ function score(g: InventGame, votingSkipped: boolean): Pick<InventGame, "round" 
 /** The phase after the current one, entered at `at`. */
 function next(g: InventGame, at: number, rng: Rng): InventGame {
   switch (g.phase) {
-    case "question":
-      return enter(g, "answering", at);
     case "answering":
       // Fewer than two answers: nobody can vote for someone else's. Round scores zero.
       if (g.round.answers.length < 2) return enter(g, "reveal", at, score(g, true));
@@ -269,7 +264,7 @@ function next(g: InventGame, at: number, rng: Rng): InventGame {
     case "leaderboard": {
       const index = g.round.index + 1;
       if (index >= g.questionIds.length) return enter(g, "final", at);
-      return enter(g, "question", at, { round: newRound(index, g.questionIds[index]) });
+      return enter(g, "answering", at, { round: newRound(index, g.questionIds[index]) });
     }
     case "final":
       return g;
@@ -283,6 +278,8 @@ function next(g: InventGame, at: number, rng: Rng): InventGame {
 export function advance(doc: InventDoc, now: number, active: ReadonlySet<string>, rng: Rng = secureRandom): InventDoc {
   let g = doc.game;
   if (!g) return doc;
+  // A match saved while rounds still opened with a question-only intro: that intro is now answering time.
+  if ((g.phase as string) === "question") g = { ...g, phase: "answering" };
   for (let step = 0; step < 500; step++) {
     if (g.phase === "final" || g.clock.runningSince === null) break;
     const duration = phaseDurationMs(doc, g.phase)!;
@@ -326,7 +323,7 @@ export function startGame(
     questionIds,
     players: players.map((p) => ({ id: p.id, name: p.name })),
     scores: Object.fromEntries(players.map((p) => [p.id, 0])),
-    phase: "question",
+    phase: "answering",
     phaseStartedAt: now,
     clock: { elapsedMs: 0, runningSince: now },
     round: newRound(0, questionIds[0]),

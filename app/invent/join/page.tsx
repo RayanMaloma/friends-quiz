@@ -75,18 +75,16 @@ function InventJoin() {
   return (
     <div className="iv iv-joinpage">
       <form className="iv-join-form iv-rise" onSubmit={join}>
-        <p className="iv-eyebrow">
-          غرفة <b dir="ltr">{code}</b>
+        <p className="iv-round-pill self-center" dir="ltr" aria-label={`غرفة ${code}`}>
+          {code}
         </p>
         <h1 className="iv-wordmark m-0 text-5xl">
           اخترع إجابتك <span className="bulb">💡</span>
         </h1>
-        {!canJoin && <p className="iv-mute font-bold">اللعبة بدأت والدخول مقفل. إذا كنت داخل قبل والمضيف حرّر مقعدك، اكتب نفس اسمك بالضبط.</p>}
-        <label htmlFor="iv-name" className="font-extrabold">
-          وش اسمك؟
-        </label>
+        {!canJoin && <p className="iv-mute font-bold">اللعبة بدأت — ترجع بنفس اسمك فقط</p>}
         <input
           id="iv-name"
+          aria-label="اسمك"
           className="iv-input text-center"
           value={name}
           maxLength={24}
@@ -107,7 +105,6 @@ function InventJoin() {
           {busy && <span className="iv-loader" />}
           ادخل
         </button>
-        <p className="iv-mute text-sm font-bold">اسمك يطلع على الشاشة عند كشف الإجابات.</p>
       </form>
     </div>
   );

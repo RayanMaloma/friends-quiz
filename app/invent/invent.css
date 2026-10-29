@@ -211,14 +211,6 @@ body:has(.iv) {
   transform: rotate(-12deg);
 }
 
-.iv-round {
-  font-family: var(--iv-display);
-  font-weight: 700;
-  color: var(--iv-mute);
-}
-.iv-round b {
-  color: var(--iv-gold);
-}
 
 .iv-question {
   font-family: var(--iv-display);
@@ -691,38 +683,234 @@ button.iv-card:active:not(:disabled) {
   color: var(--iv-gold);
   letter-spacing: 0.08em;
 }
-.iv-host-main {
+.iv-round-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(245, 194, 66, 0.14);
+  color: var(--iv-gold);
+  font-family: var(--iv-display);
+  font-weight: 900;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.iv-gear {
+  font-size: 1.15rem;
+  min-width: 2.2rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Presentation stage: full width, readable from across the room     */
+/* ---------------------------------------------------------------- */
+
+.iv-show {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 20rem;
-  gap: 1.25rem;
-  padding: 1.25rem;
-  align-items: start;
-}
-@media (max-width: 1000px) {
-  .iv-host-main {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.iv-stage {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
-  min-width: 0;
+  width: 100%;
+  max-width: 88rem;
+  margin-inline: auto;
+  padding: clamp(1rem, 3vh, 2.25rem) clamp(1rem, 3vw, 2.5rem) clamp(1.25rem, 4vh, 2.5rem);
 }
-.iv-controls {
-  position: sticky;
-  top: 5rem;
+
+/* Answering: the question dominates, the clock under it, then who's done. */
+.iv-answering {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: clamp(1rem, 3.5vh, 2.25rem);
+  text-align: center;
+}
+.iv-q-hero {
+  margin: 0;
+  max-width: 60rem;
+  font-size: clamp(1.9rem, 1rem + 3.2vw, 4rem);
+  line-height: 1.35;
+}
+.iv-clock {
+  font-family: var(--iv-display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 1.5rem + 3vw, 4.5rem);
+  line-height: 1;
+  color: var(--iv-gold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.iv-clock.is-urgent {
+  color: var(--iv-red);
+  animation: iv-throb 1s ease-in-out infinite;
+}
+.iv-clock.is-paused {
+  color: var(--iv-mute);
+}
+
+.iv-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  max-width: 64rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.iv-status-grid li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  background: var(--iv-card);
+  border: 1.5px solid var(--iv-line);
+  font-weight: 800;
+  font-size: clamp(1.05rem, 0.8rem + 0.5vw, 1.4rem);
+  color: var(--iv-mute);
+  transition: border-color 0.25s, color 0.25s, background 0.25s;
+}
+.iv-status-grid li.is-done {
+  color: var(--iv-ink);
+  border-color: rgba(79, 214, 156, 0.55);
+  background: rgba(79, 214, 156, 0.1);
+}
+.iv-status-name {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iv-status-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  border: 1.5px dashed var(--iv-line-hi);
+  color: var(--iv-mint);
+  font-size: 0.85em;
+}
+.is-done .iv-status-mark {
+  border: 0;
+  background: var(--iv-mint);
+  color: #0e0f13;
+  animation: iv-pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+/* Voting + reveal: same board, same cards. */
+.iv-board {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 2.5vh, 1.5rem);
+}
+.iv-board-head {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.iv-q-board {
+  flex: 1;
+  margin: 0;
+  font-size: clamp(1.35rem, 0.9rem + 1.4vw, 2.4rem);
+}
+.iv-board-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+.iv-board-meta .iv-clock {
+  font-size: clamp(2rem, 1.3rem + 1.8vw, 3.2rem);
+}
+.iv-board-meta .iv-progress {
+  font-size: 1.15rem;
+  color: var(--iv-mute);
+}
+.iv-empty {
+  margin: 0;
+  text-align: center;
+  color: var(--iv-mute);
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+.iv-show .iv-empty {
+  font-family: var(--iv-display);
+  font-size: clamp(1.4rem, 1rem + 1vw, 2rem);
+  padding: 2rem 0;
+}
+
+/* Leaderboard + final. */
+.iv-ranking {
+  width: 100%;
+  max-width: 52rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.iv-ranking-title {
+  margin: 0 0 0.25rem;
+  text-align: center;
+  font-family: var(--iv-display);
+  font-weight: 900;
+  font-size: clamp(1.8rem, 1.2rem + 1.6vw, 2.8rem);
+  color: var(--iv-gold);
+}
+.iv-final-title {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(2.2rem, 1.4rem + 2.4vw, 3.8rem);
+}
+
+/* ---------------------------------------------------------------- */
+/* Host settings drawer: over the stage, never part of the layout    */
+/* ---------------------------------------------------------------- */
+
+.iv-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  animation: iv-fade 0.2s both;
+}
+.iv-drawer {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  inset-inline-end: 0.75rem;
+  width: min(22rem, calc(100% - 1.5rem));
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
   padding: 1rem;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  animation: iv-drawer-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.iv-controls h3 {
+.iv-drawer:focus {
+  outline: none;
+}
+@keyframes iv-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-1.5rem);
+  }
+}
+.iv-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.iv-drawer-head h2 {
   margin: 0;
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: var(--iv-mute);
+  font-family: var(--iv-display);
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+.iv-drawer .iv-setting {
+  grid-template-columns: minmax(0, 1fr) 5.5rem;
 }
 .iv-stats {
   display: grid;
@@ -753,36 +941,64 @@ button.iv-card:active:not(:disabled) {
   gap: 0.6rem;
   font-weight: 800;
 }
-.iv-field small {
-  color: var(--iv-mute);
-  font-weight: 700;
-}
 
-.iv-hero-question {
-  font-size: clamp(1.6rem, 1rem + 2.2vw, 3.2rem);
-  margin: 0;
-}
-.iv-stage-head {
+/* Phones */
+.iv-qhead {
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
+  align-items: flex-start;
+  gap: 0.75rem;
 }
-.iv-stage-head .iv-question {
+.iv-qhead .iv-question {
   flex: 1;
   margin: 0;
-  font-size: clamp(1.2rem, 0.9rem + 1vw, 1.9rem);
 }
-
-.iv-phase-banner {
+.iv-answer-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.iv-sent {
+  align-self: center;
+  margin: 1.5rem 0 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.25rem 0.8rem;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
   border-radius: 999px;
-  background: rgba(245, 194, 66, 0.14);
-  color: var(--iv-gold);
+  background: rgba(79, 214, 156, 0.12);
+  border: 1.5px solid rgba(79, 214, 156, 0.5);
+  color: var(--iv-mint);
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+.iv-sent.is-inline {
+  margin: 0;
+  font-size: 1rem;
+  padding: 0.35rem 1rem;
+}
+.iv-sent span {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: var(--iv-mint);
+  color: #0e0f13;
+}
+.iv-hint-line {
+  margin: 0;
   font-weight: 800;
-  font-size: 0.9rem;
+  color: var(--iv-gold);
+}
+.iv-gain {
+  margin: 0;
+  align-self: center;
+  font-family: var(--iv-display);
+  font-weight: 900;
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--iv-gold);
 }
 
 .iv-paused {
@@ -802,22 +1018,55 @@ button.iv-card:active:not(:disabled) {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
-/* Lobby */
+/* Lobby: vertically balanced in the space under the header, never stretched. */
+.iv-lobby-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  align-items: center;
+  gap: clamp(1rem, 3.5vh, 2.25rem);
+  padding: clamp(1rem, 4vh, 3rem) 1.25rem clamp(1.5rem, 5vh, 3.5rem);
+}
+.iv-lobby-head {
+  text-align: center;
+}
+.iv-lobby-head .iv-wordmark {
+  margin: 0.15rem 0 0.35rem;
+  font-size: clamp(2.6rem, 1.6rem + 3.2vw, 4.25rem);
+}
 .iv-lobby {
+  width: 100%;
+  max-width: 62rem;
   display: grid;
-  grid-template-columns: 22rem minmax(0, 1fr);
+  grid-template-columns: minmax(15rem, 18.5rem) minmax(0, 1fr);
   gap: 1.25rem;
   align-items: start;
 }
-@media (max-width: 900px) {
-  .iv-lobby {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.iv-lobby-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+/* Right column: the main way in. */
+.iv-join-panel {
+  position: sticky;
+  top: 5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.1rem 1.1rem 1.25rem;
+  border-color: rgba(245, 194, 66, 0.28);
+  box-shadow: 0 0 0 1px rgba(245, 194, 66, 0.06), 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 .iv-qr {
+  width: min(100%, 14.5rem);
   background: var(--iv-ink);
   border-radius: 1rem;
-  padding: 0.6rem;
+  padding: 0.55rem;
   aspect-ratio: 1;
 }
 .iv-qr svg {
@@ -828,50 +1077,230 @@ button.iv-card:active:not(:disabled) {
 .iv-join-code {
   font-family: var(--iv-display);
   font-weight: 900;
-  font-size: 3.6rem;
+  font-size: 3.1rem;
   letter-spacing: 0.12em;
   color: var(--iv-gold);
   line-height: 1;
+  margin: 0.15rem 0 0;
   text-align: center;
 }
+
+/* Left column sections share one header style. */
+.iv-lobby-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem 1.1rem;
+}
+.iv-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.iv-section-head h2 {
+  margin: 0;
+  font-family: var(--iv-display);
+  font-weight: 700;
+  font-size: 1.35rem;
+}
+.iv-count {
+  font-family: var(--iv-display);
+  font-weight: 900;
+  font-size: 1.6rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--iv-mute);
+}
+.iv-count.is-ready {
+  color: var(--iv-gold);
+}
+.iv-count small {
+  font-size: 0.95rem;
+  color: var(--iv-mute);
+}
+
+/* Players: compact chips that wrap. */
 .iv-roster {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
+  gap: 0.45rem;
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: 11.5rem;
+  overflow-y: auto;
 }
 .iv-roster li {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.5rem 0.4rem 0.9rem;
-  padding-inline-start: 0.9rem;
-  border-radius: 0.9rem;
-  background: var(--iv-card);
-  border: 1px solid var(--iv-line);
-  font-weight: 800;
-  font-size: 1.15rem;
-  animation: iv-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  gap: 0.15rem;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  padding: 0.25rem 0.75rem 0.25rem 0.3rem;
+  border-radius: 999px;
+  background: var(--iv-card);
+  border: 1px solid var(--iv-line-hi);
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1.4;
+  animation: iv-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.iv-roster-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .iv-x {
   display: grid;
   place-items: center;
-  width: 1.7rem;
-  height: 1.7rem;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
   border: 0;
   background: transparent;
   color: var(--iv-mute);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.75rem;
 }
 .iv-x:hover {
   background: rgba(255, 107, 107, 0.15);
   color: var(--iv-red);
+}
+.iv-roster-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  border: 1.5px dashed var(--iv-line-hi);
+  color: var(--iv-mute);
+  font-weight: 700;
+}
+.iv-roster-empty span {
+  font-size: 1.5rem;
+}
+.iv-roster-empty p {
+  margin: 0;
+}
+
+/* Match settings: label · input (one shared column) · hint. */
+.iv-setting {
+  display: grid;
+  grid-template-columns: 10.5rem 6rem minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.85rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--iv-line);
+}
+.iv-section-head + .iv-setting {
+  border-top: 0;
+  padding-top: 0;
+}
+.iv-setting-label {
+  font-weight: 800;
+}
+.iv-setting .iv-num {
+  width: 100%;
+}
+.iv-setting-hint {
+  color: var(--iv-mute);
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+/* Start: strong when ready, plainly off when not. */
+.iv-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  padding-top: 0.25rem;
+}
+.iv-start-btn {
+  width: min(100%, 22rem);
+  min-height: 3.9rem;
+  font-size: 1.5rem;
+}
+.iv-start-btn:not(:disabled) {
+  box-shadow: 0 4px 0 var(--iv-gold-deep), 0 0 0 4px rgba(245, 194, 66, 0.16), 0 12px 32px rgba(245, 194, 66, 0.22);
+}
+.iv-start-btn:disabled {
+  opacity: 1;
+  background: var(--iv-card);
+  border: 1.5px dashed var(--iv-line-hi);
+  color: var(--iv-mute);
+  box-shadow: none;
+}
+.iv-start-note {
+  margin: 0;
+  color: var(--iv-mute);
+  font-weight: 800;
+  text-align: center;
+}
+.iv-start-note.is-ready {
+  color: var(--iv-mint);
+}
+
+/* Short laptop screens (e.g. 1280×720): tighter, so Start stays above the fold. */
+@media (min-width: 861px) and (max-height: 820px) {
+  .iv-lobby-main {
+    gap: 1rem;
+    padding-top: 0.9rem;
+    padding-bottom: 1rem;
+  }
+  .iv-lobby-head .iv-wordmark {
+    font-size: 2.6rem;
+    margin: 0 0 0.15rem;
+  }
+  .iv-lobby-side {
+    gap: 0.75rem;
+  }
+  .iv-lobby-section {
+    gap: 0.6rem;
+    padding: 0.8rem 1.1rem 0.85rem;
+  }
+  .iv-setting {
+    padding: 0.3rem 0;
+  }
+  .iv-qr {
+    width: min(100%, 12.5rem);
+  }
+  .iv-join-code {
+    font-size: 2.6rem;
+  }
+  .iv-start-btn {
+    min-height: 3.4rem;
+  }
+}
+
+/* Tablet and down: one column, QR first. */
+@media (max-width: 860px) {
+  .iv-lobby {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 36rem;
+  }
+  .iv-join-panel {
+    position: static;
+  }
+}
+/* Phones: settings stack (label + input on one line, hint under). */
+@media (max-width: 520px) {
+  .iv-lobby-main {
+    padding-inline: 0.9rem;
+  }
+  .iv-setting {
+    grid-template-columns: minmax(0, 1fr) 5.5rem;
+    row-gap: 0.15rem;
+  }
+  .iv-setting-hint {
+    grid-column: 1 / -1;
+  }
+  .iv-join-code {
+    font-size: 2.6rem;
+  }
 }
 
 /* Modal */
