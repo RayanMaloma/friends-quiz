@@ -117,6 +117,25 @@ describe("accounts and roles", () => {
     expect(await denied(alice, "select public.fq_open_provision_ticket('second-admin@example.com')")).toMatch(/permission denied/);
   });
 
+  it("the server RPCs that read auth.users work as the service role (no SELECT on auth.users on Supabase)", async () => {
+    await pg.exec("begin");
+    try {
+      await pg.exec("set local role service_role");
+      await pg.exec("savepoint direct");
+      await expect(pg.query("select 1 from auth.users")).rejects.toThrow(/permission denied/);
+      await pg.exec("rollback to savepoint direct");
+      const one = async (sql: string) => (await pg.query<{ r: R }>(`select ${sql} as r`)).rows[0].r;
+      expect((await one(`public.fq_auth_profile('${alice}')`)).ok).toBe(true);
+      expect((await one(`public.fq_set_super_admin('rayanomaireeni@gmail.com')`)).ok).toBe(true);
+      expect((await one("public.fq_admin_activity_overview()")).ok).toBe(true);
+      expect((await one("public.fq_admin_list_accounts(10)")).ok).toBe(true);
+      expect((await one(`public.fq_admin_list_activity_sessions('{}'::jsonb, 10)`)).ok).toBe(true);
+      expect((await one(`public.fq_admin_session_detail('${crypto.randomUUID()}')`)).ok).toBe(false);
+    } finally {
+      await pg.exec("rollback");
+    }
+  });
+
   it("the super admin is granted by provisioning only, and there is only one", async () => {
     expect((await call("fq_auth_profile", { p_user_id: admin })).role).toBe("user");
     expect((await call("fq_set_super_admin", { p_email: "RAYANOMAIREENI@gmail.com" })).ok).toBe(true);
