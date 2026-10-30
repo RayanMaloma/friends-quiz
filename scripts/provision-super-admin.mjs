@@ -116,7 +116,7 @@ async function supabase() {
   let user = null;
   for (let page = 1; !user; page++) {
     const { data, error } = await db.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) throw new Error(`listUsers: ${error.message}`);
+    if (error) throw new Error(`listUsers: ${error.message}${error.cause?.code ? ` (${error.cause.code})` : ""} — check the connection to ${new URL(url).host}`);
     user = data.users.find((u) => (u.email ?? "").toLowerCase() === EMAIL) ?? null;
     if (data.users.length < 1000) break;
   }
@@ -141,6 +141,10 @@ async function supabase() {
     await confirmOwnership();
     const password = await askPassword();
     checkPassword(password);
+    // The email is reserved: open a one-time ticket so the database accepts this account.
+    const ticket = await db.rpc("fq_open_provision_ticket", { p_email: EMAIL });
+    if (ticket.error) throw new Error(`fq_open_provision_ticket: ${ticket.error.message} (is migration 20261030010000_provision_ticket.sql applied?)`);
+    if (!ticket.data?.ok) throw new Error(`fq_open_provision_ticket: ${ticket.data?.error}`);
     const { error } = await db.auth.admin.createUser({
       email: EMAIL,
       password,

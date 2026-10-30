@@ -99,6 +99,24 @@ describe("accounts and roles", () => {
     await expect(pg.query("update auth.users set email = 'rayanomaireeni@gmail.com' where id = $1", [bob])).rejects.toThrow(/EMAIL_RESERVED/);
   });
 
+  it("provisioning opens a one-time ticket: Supabase inserts the user before its app_metadata", async () => {
+    await pg.query("insert into public.fq_reserved_emails (email) values ('second-admin@example.com')");
+    // No ticket: refused, even for the service role.
+    await expect(signUp("second-admin@example.com")).rejects.toThrow(/EMAIL_RESERVED/);
+    expect((await call("fq_open_provision_ticket", { p_email: "alice@example.com" })).error).toBe("NOT_RESERVED");
+    // An expired ticket doesn't count.
+    expect((await call("fq_open_provision_ticket", { p_email: "Second-Admin@example.com" })).ok).toBe(true);
+    await pg.query("update public.fq_provision_tickets set expires_at = now() - interval '1 second'");
+    await expect(signUp("second-admin@example.com")).rejects.toThrow(/EMAIL_RESERVED/);
+    // An open ticket admits exactly one insert, without the flag in app_metadata.
+    await call("fq_open_provision_ticket", { p_email: "second-admin@example.com" });
+    const id = await signUp("second-admin@example.com");
+    expect((await call("fq_auth_profile", { p_user_id: id })).role).toBe("user");
+    await pg.query("delete from auth.users where id = $1", [id]);
+    await expect(signUp("second-admin@example.com")).rejects.toThrow(/EMAIL_RESERVED/);
+    expect(await denied(alice, "select public.fq_open_provision_ticket('second-admin@example.com')")).toMatch(/permission denied/);
+  });
+
   it("the super admin is granted by provisioning only, and there is only one", async () => {
     expect((await call("fq_auth_profile", { p_user_id: admin })).role).toBe("user");
     expect((await call("fq_set_super_admin", { p_email: "RAYANOMAIREENI@gmail.com" })).ok).toBe(true);
@@ -269,6 +287,6 @@ describe("activity dashboard queries", () => {
   it("retention: old activity can be purged (never less than 30 days)", async () => {
     await pg.query("update public.fq_activity set created_at = now() - interval '400 days' where kind = 'user_registered'");
     const res = await call<R & { deleted: number }>("fq_purge_activity", { p_days: 1 });
-    expect(res.deleted).toBe(3);
+    expect(res.deleted).toBe(4); // 3 accounts + the provisioning test's deleted one
   });
 });
