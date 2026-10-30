@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   openGraph: { title: SITE_NAME, description: SITE_DESCRIPTION, siteName: SITE_NAME, locale: "ar_SA", type: "website" },
-  twitter: { card: "summary", title: SITE_NAME, description: SITE_DESCRIPTION },
+  twitter: { card: "summary_large_image", title: SITE_NAME, description: SITE_DESCRIPTION },
 };
 
 export const viewport: Viewport = {
