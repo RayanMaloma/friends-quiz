@@ -92,12 +92,12 @@ export const pointsLabel = (n: number) => `+${n} نقطة`;
 /* ------------------------------------------------------------------ */
 
 /**
- * The diagonal author tag. Starts at the big size from the stylesheet and,
+ * The diagonal tag (author's name, or the real answer's mark). Starts at the big size from the stylesheet and,
  * if its rotated box would not fit in the card's tag zone (long names like
  * «عبدالرحمن الناهض»), shrinks the type until it does — so a name is never
  * clipped. Refits when the card is resized.
  */
-function AuthorTag({ name }: { name: string }) {
+function AuthorTag({ name, truth }: { name: string; truth?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     const tag = ref.current;
@@ -123,7 +123,7 @@ function AuthorTag({ name }: { name: string }) {
     return () => ro.disconnect();
   }, [name]);
   return (
-    <span ref={ref} className="iv-tag">
+    <span ref={ref} className={`iv-tag ${truth ? "is-truth" : ""}`}>
       {name}
     </span>
   );
@@ -144,30 +144,38 @@ export function AnswerCards({
   votedId?: string | null;
   onSelect?: (id: string) => void;
 }) {
-  const top = Math.max(0, ...cards.map((c) => c.votes ?? 0));
+  // The fake answer that fooled the most players (the real one is marked on its own).
+  const top = Math.max(0, ...cards.filter((c) => !c.truth).map((c) => c.votes ?? 0));
   return (
     <ul className="iv-cards">
       {cards.map((c, i) => {
-        const revealed = c.author !== null;
+        const revealed = c.votes !== null;
+        const long = [...c.text].length > 70;
         const className = [
           "iv-card",
           revealed ? "is-revealed" : "",
+          c.truth ? "is-truth" : "",
           c.mine ? "is-mine" : "",
+          long ? "is-long" : "",
           selectedId === c.id ? "is-selected" : "",
           votedId === c.id ? "is-voted-by-me" : "",
-          revealed && top > 0 && c.votes === top ? "is-top" : "",
+          revealed && !c.truth && top > 0 && c.votes === top ? "is-top" : "",
         ].join(" ");
         const body = (
           <>
             <p className="iv-card-text" dir="auto">{c.text}</p>
             <p className="iv-card-meta" aria-hidden={!revealed}>
               <span>{votesLabel(c.votes ?? 0)}</span>
-              <span>—</span>
-              <span className={`pts ${c.points ? "" : "is-zero"}`}>{pointsLabel(c.points ?? 0)}</span>
+              {!c.truth && (
+                <>
+                  <span>—</span>
+                  <span className={`pts ${c.points ? "" : "is-zero"}`}>{pointsLabel(c.points ?? 0)}</span>
+                </>
+              )}
             </p>
             <span className="iv-card-zone" aria-hidden={!revealed}>
               {revealed ? (
-                <AuthorTag name={c.author!.name} />
+                <AuthorTag name={c.truth ? "✓ الصحيحة" : (c.author?.name ?? "")} truth={c.truth} />
               ) : c.mine ? (
                 <span className="iv-card-mine-label">إجابتك</span>
               ) : (
@@ -178,7 +186,11 @@ export function AnswerCards({
         );
         return (
           // Cards rise in when voting opens; at the reveal they stay put (only the tags arrive).
-          <li key={c.id} className={revealed ? undefined : "iv-rise"} style={revealed ? undefined : { animationDelay: `${Math.min(i, 12) * 35}ms` }}>
+          <li
+            key={c.id}
+            className={[revealed ? "" : "iv-rise", long ? "is-wide" : ""].join(" ").trim() || undefined}
+            style={revealed ? undefined : { animationDelay: `${Math.min(i, 12) * 35}ms` }}
+          >
             {selectable && !revealed ? (
               <button
                 type="button"
@@ -195,7 +207,9 @@ export function AnswerCards({
                 {body}
                 {revealed && (
                   <span className="sr-only">
-                    كتبها {c.author!.name}، {votesLabel(c.votes ?? 0)}، {pointsLabel(c.points ?? 0)}
+                    {c.truth
+                      ? `الإجابة الصحيحة، ${votesLabel(c.votes ?? 0)}`
+                      : `كتبها ${c.author?.name ?? ""}، ${votesLabel(c.votes ?? 0)}، ${pointsLabel(c.points ?? 0)}`}
                   </span>
                 )}
               </div>

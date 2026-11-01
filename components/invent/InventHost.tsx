@@ -503,7 +503,7 @@ function Stage({ view, game, ms, run }: { view: InventHostView; game: InventPubl
           ) : (
             <>
               <AnswerCards cards={game.cards ?? []} />
-              {game.phase === "reveal" && game.votingSkipped && <p className="iv-empty">إجابة وحدة — بدون نقاط</p>}
+              {game.phase === "reveal" && game.votingSkipped && <p className="iv-empty">بدون تصويت — بدون نقاط</p>}
             </>
           )}
         </section>

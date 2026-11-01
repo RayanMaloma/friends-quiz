@@ -228,7 +228,7 @@ export async function POST(req: Request) {
         return ok({});
       }
 
-      // The fixed Ahaji question set, read-only (its wording is approved and never edited here).
+      // The fixed «اخترع إجابتك» question bank with its answers, read-only (its wording is approved and never edited here).
       case "inventAhajiQuestions":
         return ok({ questions: QUESTION_BANK });
 

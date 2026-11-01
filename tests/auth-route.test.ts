@@ -178,11 +178,11 @@ describe("what a regular user may open", () => {
     expect(list.body.privileged).toBe(false);
   });
 
-  it("creates Mafia, «اخترع إجابتك» (own questions) and «المهرب السري» rooms, owned by them", async () => {
+  it("creates Mafia, «اخترع إجابتك» and «المهرب السري» rooms, owned by them", async () => {
     as("sara");
     const mafia = await call(MAFIA, { action: "create" });
     expect(mafia.body.ok).toBe(true);
-    const invent = await call(INVENT, { action: "create", questions: ["سؤال ١؟", "سؤال ٢؟"], rounds: 2 });
+    const invent = await call(INVENT, { action: "create", rounds: 2 });
     expect(invent.body.ok).toBe(true);
     const dx = await call(DX, { action: "create", gameId: publicDx });
     expect(dx.body.ok).toBe(true);
@@ -208,7 +208,7 @@ describe("what a regular user may open", () => {
 
   it("signed out: no room, no catalog", async () => {
     expect((await call(MAFIA, { action: "create" })).body.error).toBe("AUTH_REQUIRED");
-    expect((await call(INVENT, { action: "create", questions: ["س؟"] })).body.error).toBe("AUTH_REQUIRED");
+    expect((await call(INVENT, { action: "create" })).body.error).toBe("AUTH_REQUIRED");
     expect((await call(CATALOG, { action: "list" })).body.error).toBe("AUTH_REQUIRED");
   });
 
@@ -274,11 +274,13 @@ describe("the super admin", () => {
     const sessions = (await call(ADMIN, { action: "listActivitySessions", filters: { gameKey: "invent" } })).body.sessions as { id: string; owner_email: string }[];
     expect(sessions.length).toBe(1);
     expect(sessions[0].owner_email).toBe("sara@example.com");
-    const detail = (await call(ADMIN, { action: "sessionDetail", id: sessions[0].id })).body.detail as { questions: string[]; ownerEmail: string };
-    expect(detail.questions).toEqual(["سؤال ١؟", "سؤال ٢؟"]);
+    const detail = (await call(ADMIN, { action: "sessionDetail", id: sessions[0].id })).body.detail as { questions: string[] | null; ownerEmail: string };
+    // Still in the lobby: no questions picked yet.
+    expect(detail.questions).toBeNull();
     expect(detail.ownerEmail).toBe("sara@example.com");
-    const ahaji = (await call(ADMIN, { action: "inventAhajiQuestions" })).body.questions as unknown[];
-    expect(ahaji).toHaveLength(46);
+    const bank = (await call(ADMIN, { action: "inventAhajiQuestions" })).body.questions as { text: string; answer: string }[];
+    expect(bank).toHaveLength(25);
+    expect(bank.every((q) => q.text && q.answer)).toBe(true);
   });
 
   it("controls visibility: a private game becomes visible to users, and back", async () => {

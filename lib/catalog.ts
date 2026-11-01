@@ -27,7 +27,7 @@ export interface CatalogEntry {
   status: "published" | "draft";
   minPlayers: number | null;
   maxPlayers: number | null;
-  /** Quiz games / the Ahaji question set. */
+  /** Quiz games / the «اخترع إجابتك» question bank. */
   questionCount: number | null;
 }
 
@@ -38,11 +38,11 @@ export const BUILTINS: Record<BuiltinKey, Omit<CatalogEntry, "visibility">> = {
   },
   invent: {
     key: "invent", kind: "invent", builtin: true, title: "اخترع إجابتك", emoji: "💡", accent: "sun",
-    status: "published", minPlayers: 3, maxPlayers: 16, questionCount: null,
+    status: "published", minPlayers: 3, maxPlayers: 16, questionCount: 25,
   },
   invent_ahaji: {
     key: "invent_ahaji", kind: "invent", builtin: true, title: "اخترع إجابتك · أحاجي", emoji: "💡", accent: "sun",
-    status: "published", minPlayers: 3, maxPlayers: 16, questionCount: 46,
+    status: "published", minPlayers: 3, maxPlayers: 16, questionCount: 25,
   },
 };
 

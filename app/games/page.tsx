@@ -93,15 +93,10 @@ export default function GamesPage() {
 
   async function start(game: Game) {
     if (creating) return;
-    // A public «اخترع إجابتك» room starts with its host's own questions.
-    if (game.key === "invent") {
-      router.push("/invent/new");
-      return;
-    }
     setCreating(game.key);
     setError(null);
     const endpoint = game.kind === "mafia" ? "/api/mafia" : game.kind === "invent" ? "/api/invent" : game.kind === "deduction" ? "/api/dx" : "/api/host";
-    const body = game.kind === "mafia" ? {} : game.kind === "invent" ? { questionSet: "ahaji" } : { gameId: game.key };
+    const body = game.kind === "mafia" ? {} : game.key === "invent_ahaji" ? { questionSet: "ahaji" } : game.kind === "invent" ? {} : { gameId: game.key };
     const res = await api<{ sessionId: string; code: string; hostToken: string }>(endpoint, { action: "create", ...body });
     if (!res.ok) {
       setError(errorMessage(res.error));

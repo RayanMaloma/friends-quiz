@@ -2,14 +2,15 @@
  * What each device may see of a «اخترع إجابتك» room.
  *
  * - While answering, nobody sees anyone's answer (a phone sees only its own).
- * - While voting, the cards carry the text and a random id only: no author,
- *   no votes. A phone learns which card is its own (to grey it out).
- * - Authors, vote counts and points arrive for every card at once, with the
- *   reveal. Who voted for whom is never sent to anyone.
+ * - The real answer is never sent before voting. While voting it is one
+ *   card among the fake ones: text and a random id only, no author, no
+ *   votes, nothing telling it apart. A phone learns which card is its own
+ *   (to grey it out).
+ * - Which card was real, authors, vote counts and points arrive for every
+ *   card at once, with the reveal. Who voted for whom is never sent to anyone.
  */
 import type { Snapshot } from "@/lib/types";
 import {
-  AHAJI_QUESTION_COUNT,
   answerOf,
   canVote,
   isPaused,
@@ -18,6 +19,8 @@ import {
   MAX_TIMER_SECONDS,
   MIN_PLAYERS,
   phaseDurationMs,
+  POINTS_PER_VOTE,
+  QUESTION_BANK_SIZE,
   remainingMs,
   standings,
   winners,
@@ -36,17 +39,13 @@ export interface InventSessionConfig {
   settings: { lateJoin: false; askPersonOnJoin: false };
   people: [];
   /**
-   * "custom": a public room playing its host's own `questions`.
-   * Missing / "ahaji": the private Ahaji set (rooms created before public rooms existed too).
+   * Which catalog entry opened the room: "custom" = the public «اخترع إجابتك»
+   * (the name dates from when its host wrote the questions), missing /
+   * "ahaji" = the private one. Both play the question bank.
    */
   questionSet?: "custom" | "ahaji";
+  /** Older public rooms only: the questions their host wrote (no longer played). */
   questions?: InventQuestion[];
-}
-
-/** How many questions this room can draw from. */
-export function inventPoolSize(config: unknown): number {
-  const c = (config ?? {}) as Partial<InventSessionConfig>;
-  return c.questionSet === "custom" ? (Array.isArray(c.questions) ? c.questions.length : 0) : AHAJI_QUESTION_COUNT;
 }
 
 export type InventStatus = "LOBBY" | "PLAYING" | "FINISHED";
@@ -56,9 +55,13 @@ export interface InventCard {
   text: string;
   /** Phones only: this is the viewer's own answer. */
   mine: boolean;
-  /** From the reveal on. */
+  /** From the reveal on: this card is the real answer (always false before). */
+  truth: boolean;
+  /** From the reveal on, fake answers only. */
   author: { id: string; name: string } | null;
+  /** From the reveal on (null before). */
   votes: number | null;
+  /** From the reveal on: what the card earned its author (100 per player fooled; null for the real answer). */
   points: number | null;
 }
 
@@ -159,15 +162,22 @@ function publicGame(doc: InventDoc, now: number, active: Set<string>, viewerId: 
     voterCount: voters.length,
     votingSkipped: r.votingSkipped,
     cards: showCards
-      ? (revealed && r.order.length === 0 ? r.answers.map((a) => a.id) : r.order).map((id) => {
+      ? (revealed && r.order.length === 0 ? r.answers.map((a) => a.id) : r.order).map((id): InventCard => {
+          const votes = revealed ? (r.tally![id] ?? 0) : null;
+          if (r.truthId && id === r.truthId) {
+            // The real answer's text is only ever read here, once voting is open.
+            const text = g.questions?.[r.index]?.answer ?? "";
+            return { id, text, mine: false, truth: revealed, author: null, votes, points: null };
+          }
           const a = r.answers.find((x) => x.id === id)!;
           return {
             id: a.id,
             text: a.text,
             mine: viewerId !== null && a.authorId === viewerId,
+            truth: false,
             author: revealed ? { id: a.authorId, name: nameOf.get(a.authorId) ?? "" } : null,
-            votes: revealed ? (r.tally![a.id] ?? 0) : null,
-            points: revealed ? (r.gained![a.authorId] ?? 0) : null,
+            votes,
+            points: votes === null ? null : votes * POINTS_PER_VOTE,
           };
         })
       : null,
@@ -191,7 +201,7 @@ function base(snapshot: Snapshot, doc: InventDoc, viewerId: string | null): Inve
     limits: {
       minPlayers: MIN_PLAYERS,
       maxPlayers: MAX_PLAYERS,
-      questions: inventPoolSize(s.config),
+      questions: QUESTION_BANK_SIZE,
       maxSeconds: MAX_TIMER_SECONDS,
       maxAnswer: MAX_ANSWER_LENGTH,
     },

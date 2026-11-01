@@ -134,17 +134,16 @@ function Round({ view, game, receivedAt, act }: { view: InventGuestView; game: I
         </>
       );
     case "reveal": {
-      const mine = game.cards?.find((c) => c.mine);
+      // This round's points: the real answer picked, plus every player fooled.
+      const gained = game.standings.find((r) => r.playerId === view.me.playerId)?.gained ?? 0;
       return (
         <>
           {head}
-          {mine && (
-            <p className="iv-gain" dir="ltr" aria-label={`إجابتك جابت ${mine.points ?? 0} نقطة`}>
-              +{mine.points ?? 0}
-            </p>
-          )}
+          <p className="iv-gain" dir="ltr" aria-label={`جبت ${gained} نقطة هالجولة`}>
+            +{gained}
+          </p>
           {game.cards && game.cards.length > 0 ? <AnswerCards cards={game.cards} votedId={view.myVote} /> : <p className="iv-empty">ما وصلت إجابات</p>}
-          {game.votingSkipped && <p className="iv-empty">إجابة وحدة — بدون نقاط</p>}
+          {game.votingSkipped && <p className="iv-empty">بدون تصويت — بدون نقاط</p>}
         </>
       );
     }
@@ -204,7 +203,7 @@ function AnswerBox({ view, game, act }: { view: InventGuestView; game: InventPub
         dir="auto"
         value={text}
         maxLength={max * 2}
-        placeholder="إجابتك…"
+        placeholder="إجابة مزيفة تقنعهم…"
         enterKeyHint="send"
         onChange={(e) => {
           setText([...e.target.value].slice(0, max).join(""));
@@ -270,7 +269,7 @@ function Voting({ view, game, act }: { view: InventGuestView; game: InventPublic
 
   return (
     <>
-      <p className="iv-hint-line">صوّت لأفضل إجابة</p>
+      <p className="iv-hint-line">وين الإجابة الصحيحة؟</p>
       <AnswerCards cards={cards} selectable selectedId={picked} onSelect={(id) => setPicked(id)} />
       {error && (
         <p className="iv-error m-0" role="alert">

@@ -9,7 +9,6 @@ import {
   applyHostMove,
   applyPlayerMove,
   applySettings,
-  cleanQuestions,
   DEFAULT_SETTINGS,
   isTimerSeconds,
   newDoc,
@@ -72,19 +71,9 @@ function viewFor(snapshot: Snapshot, doc: InventDoc, actor: Actor) {
   return actor.kind === "host" ? buildInventHostView(snapshot, doc) : buildInventGuestView(snapshot, doc, actor.id);
 }
 
-/** The questions this room draws from: its host's own, or (private room) the Ahaji set. */
-function poolOf(snapshot: Snapshot): readonly InventQuestion[] {
-  const config = snapshot.session.config as unknown as InventSessionConfig;
-  if (config.questionSet === "custom") return Array.isArray(config.questions) ? config.questions : [];
+/** The questions every room draws from (public and private alike): the question bank, real answers included. */
+function poolOf(): readonly InventQuestion[] {
   return QUESTION_BANK;
-}
-
-/** Matches saved before rooms had pools only stored question ids: add their text once. */
-function withQuestionText(doc: InventDoc, pool: readonly InventQuestion[]): InventDoc {
-  const g = doc.game;
-  if (!g || g.questions) return doc;
-  const byId = new Map(pool.map((q) => [q.id, q]));
-  return { ...doc, game: { ...g, questions: g.questionIds.map((id) => ({ id, text: byId.get(id)?.text ?? "" })) } };
 }
 
 const isRound = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 100;
@@ -142,7 +131,7 @@ async function commit(body: Record<string, unknown>, first: Identified, change: 
     if ("error" in who) return who.error;
     const { snapshot, actor } = who;
     const now = Date.parse(snapshot.now);
-    const current = withQuestionText(inventDocOf(snapshot)!, poolOf(snapshot));
+    const current = inventDocOf(snapshot)!;
     if (snapshot.session.status === "FINISHED") return ok({ view: viewFor(snapshot, current, actor) });
 
     const active = activeIds(snapshot);
@@ -199,16 +188,15 @@ export async function POST(req: Request) {
     const body = await readBody(req);
     const action = body.action;
 
-    // Opening a room needs an account. A public room plays the host's own
-    // questions (sent here, kept with the room); the Ahaji set is private.
+    // Opening a room needs an account. The public and the private (Ahaji)
+    // entries play the same question bank; each is checked against its own
+    // visibility.
     if (action === "create") {
       const ahaji = body.questionSet === "ahaji";
       const auth = await authorizeCreate(ahaji ? "invent_ahaji" : "invent");
       if ("error" in auth) return fail(auth.error, auth.status);
-      const questions = ahaji ? null : cleanQuestions(body.questions);
-      if (!ahaji && !questions) return fail("IV_QUESTIONS");
-      const poolSize = questions ? questions.length : QUESTION_BANK.length;
-      // Match settings chosen with the questions (still editable in the lobby).
+      const poolSize = QUESTION_BANK.length;
+      // Optional starting settings (still editable in the lobby).
       const settings = { ...DEFAULT_SETTINGS, rounds: Math.min(DEFAULT_SETTINGS.rounds, poolSize) };
       const lobby = applySettings(newDoc(settings), {
         rounds: optInt(body.rounds),
@@ -223,7 +211,8 @@ export async function POST(req: Request) {
         accent: "sun",
         settings: { lateJoin: false, askPersonOnJoin: false },
         people: [],
-        ...(questions ? { questionSet: "custom" as const, questions } : { questionSet: "ahaji" as const }),
+        // "custom" files the room under the public entry (fq_session_game_key).
+        questionSet: ahaji ? "ahaji" : "custom",
       };
       const hostToken = newToken();
       const res = await rpc<RpcResult>("fq_invent_create_session", {
@@ -250,7 +239,7 @@ export async function POST(req: Request) {
           answerSeconds: optInt(body.answerSeconds),
           voteSeconds: optInt(body.voteSeconds),
         };
-        return await commit(body, who, { kind: "doc", run: (doc, _now, snapshot) => applySettings(doc, patch, poolOf(snapshot).length) });
+        return await commit(body, who, { kind: "doc", run: (doc) => applySettings(doc, patch, poolOf().length) });
       }
 
       // Start from the lobby, or a new match straight from the final results
@@ -263,7 +252,7 @@ export async function POST(req: Request) {
             const lobby = snapshot.session.status === "LOBBY" && !doc.game;
             const over = doc.game?.phase === "final";
             if (action === "start" ? !lobby : !over) return { doc };
-            return startGame(doc, seatedPlayers(snapshot), now, poolOf(snapshot));
+            return startGame(doc, seatedPlayers(snapshot), now, poolOf());
           },
         });
       }

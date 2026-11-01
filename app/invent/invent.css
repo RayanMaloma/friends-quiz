@@ -316,12 +316,6 @@ body:has(.iv) {
   margin: 0;
   padding: 0;
 }
-/* Very narrow phones: one column, so answers stay readable. */
-@media (max-width: 380px) {
-  .iv-cards {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 
 .iv-card {
   /* Width kept free for the diagonal tag (left side: the end of each RTL line). */
@@ -371,6 +365,19 @@ button.iv-card:active:not(:disabled) {
 .iv-card.is-top {
   border-color: rgba(245, 194, 66, 0.55);
   background: linear-gradient(180deg, #2c2a24, #211f1b);
+}
+/* The real answer, once revealed: mint instead of gold. */
+.iv-card.is-truth {
+  border-color: var(--iv-mint);
+  background: linear-gradient(180deg, #1f3a30, #172a23);
+  box-shadow: 0 0 0 3px rgba(79, 214, 156, 0.22);
+}
+.iv-card.is-truth.is-voted-by-me {
+  box-shadow: 0 0 0 3px rgba(79, 214, 156, 0.22), 0 0 0 5px var(--iv-gold);
+}
+/* Long answers: smaller type so the card stays compact. */
+.iv-card.is-long {
+  --card-text: 0.88rem;
 }
 
 .iv-card-text {
@@ -485,6 +492,17 @@ button.iv-card:active:not(:disabled) {
 .iv-card.is-top .iv-tag::after {
   background: #262420;
 }
+.iv-tag.is-truth {
+  background: linear-gradient(180deg, #8af0c2, var(--iv-mint) 55%, #34b47f);
+  color: #07170f;
+  box-shadow:
+    0 0.12em 0 #23875d,
+    0 0.45em 1.1em rgba(0, 0, 0, 0.45);
+}
+.iv-card.is-truth .iv-tag::before,
+.iv-card.is-truth .iv-tag::after {
+  background: #1b3229;
+}
 @keyframes iv-tag-in {
   from {
     opacity: 0;
@@ -500,10 +518,33 @@ button.iv-card:active:not(:disabled) {
   }
 }
 
-/* Single-column phones: a bit more room for the tag. */
+/* Phones: a long answer takes the whole row so it stays short. */
+@media (max-width: 560px) {
+  .iv-cards > li.is-wide {
+    grid-column: 1 / -1;
+  }
+  .iv-card-meta {
+    flex-wrap: wrap;
+    column-gap: 0.25rem;
+    font-size: 0.75rem;
+  }
+  .iv-card-meta > span {
+    white-space: nowrap;
+  }
+}
+/* Narrow phones: still two columns, a little more room for the text. */
 @media (max-width: 380px) {
+  .iv-cards {
+    gap: 0.5rem;
+  }
   .iv-card {
-    --tag-zone: 40%;
+    --tag-zone: 34%;
+    padding: 0.6rem 0.65rem 0.5rem;
+    padding-inline-end: calc(var(--tag-zone) + 0.15rem);
+  }
+  .iv-card-mine-label {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.72rem;
   }
 }
 
@@ -516,6 +557,9 @@ button.iv-card:active:not(:disabled) {
   min-height: 7.25rem;
   padding: 0.9rem 1.1rem 0.7rem;
   padding-inline-end: calc(var(--tag-zone) + 0.5rem);
+}
+.iv-host .iv-card.is-long {
+  --card-text: clamp(0.9rem, 0.65rem + 0.45vw, 1.15rem);
 }
 .iv-host .iv-card-meta {
   font-size: 1.05rem;

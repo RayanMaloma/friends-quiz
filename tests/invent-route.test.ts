@@ -5,9 +5,9 @@ import type { InventDoc } from "@/lib/invent/engine";
 import type { InventGuestView, InventHostView } from "@/lib/invent/views";
 
 // The /api/invent endpoint end to end, on the real migrations (in-memory
-// Postgres): rooms and joining, host-only actions, what each device may see,
-// phones acting at the same instant, scoring once, live timer edits,
-// rematch / lobby / close.
+// Postgres): rooms and joining, host-only actions, what each device may see
+// (the real answer above all), phones acting at the same instant, scoring
+// once, live timer edits, rematch / lobby / close.
 
 let pg: PGlite;
 
@@ -60,7 +60,7 @@ interface Room {
   join: (name: string) => Promise<Res<unknown>>;
 }
 
-/** The private Ahaji room by default (46 questions); pass `create` for a public room with its own questions. */
+/** The private Ahaji room by default; pass `create: {}` for a public one (both play the 25-question bank). */
 async function openRoom(names = NAMES, create: Record<string, unknown> = { questionSet: "ahaji" }): Promise<Room> {
   const created = await call<never>(POST, { action: "create", ...create });
   expect(created.body.ok).toBe(true);
@@ -109,12 +109,13 @@ describe("/api/invent", () => {
   it("lobby: defaults, settings, removal, minimum players, duplicate names", async () => {
     const room = await openRoom(["أ", "ب"]);
     let h = await room.host("state");
-    expect(h.body.view!.settings).toEqual({ rounds: 36, answerSeconds: 60, voteSeconds: 30 });
+    expect(h.body.view!.settings).toEqual({ rounds: 25, answerSeconds: 60, voteSeconds: 30 });
+    expect(h.body.view!.limits.questions).toBe(25);
     expect((await room.join("أ")).body.error).toBe("NAME_TAKEN");
 
     h = await room.host("settings", { rounds: 5, answerSeconds: 24, voteSeconds: 15 });
     expect(h.body.view!.settings).toEqual({ rounds: 5, answerSeconds: 24, voteSeconds: 15 });
-    expect((await room.host("settings", { rounds: 47 })).status).toBe(400);
+    expect((await room.host("settings", { rounds: 26 })).status).toBe(400);
 
     const start = await room.host("start");
     expect(start.body).toMatchObject({ ok: false, error: "RULE" });
@@ -146,12 +147,17 @@ describe("/api/invent", () => {
     expect((await room.guest("الدحام", "settings", { rounds: 1 })).status).toBe(400);
   });
 
-  it("plays a round: hidden answers, anonymous cards, one stable order, scoring once", async () => {
+  it("plays a round: hidden answers, the real one shuffled in anonymously, scoring once", async () => {
     const room = await openRoom();
     await room.host("settings", { rounds: 2 });
     await room.host("start");
-        let h = await room.host("state");
+    let h = await room.host("state");
     expect(h.body.view!.game!.phase).toBe("answering");
+    // The real answer stays on the server while answering: not on the TV, not on any phone.
+    const truth = (await docOf(room.sessionId)).game!.questions![0].answer!;
+    expect(truth.length).toBeGreaterThan(0);
+    expect(JSON.stringify(h.body.view)).not.toContain(truth);
+    for (const n of NAMES) expect(JSON.stringify((await room.guest(n, "state")).body.view)).not.toContain(truth);
 
     // Answers stay hidden: a phone sees only its own, the host only counts.
     const texts: Record<string, string> = { الدحام: "قال الفاتورة تحتاج تحديث ويندوز", "أبو قاسم": "النت فاصل", العمري: "القطوة مشت على الكيبورد" };
@@ -167,6 +173,11 @@ describe("/api/invent", () => {
     // Duplicate and different second answers.
     expect((await room.guest("الدحام", "act", { move: { type: "answer", round: 0, text: texts["الدحام"] } })).body.ok).toBe(true);
     expect((await room.guest("الدحام", "act", { move: { type: "answer", round: 0, text: "ثاني" } })).body.error).toBe("IV_ANSWERED");
+    // The real answer, or someone else's answer, is refused (and nothing is stored).
+    const last = "عبدالرحمن الناهض";
+    expect((await room.guest(last, "act", { move: { type: "answer", round: 0, text: ` ${truth}! ` } })).body.error).toBe("IV_TRUTH");
+    expect((await room.guest(last, "act", { move: { type: "answer", round: 0, text: "النِّت فاصل" } })).body.error).toBe("IV_TAKEN");
+    expect((await room.guest(last, "state")).body.view!.myAnswer).toBeNull();
 
     // Last answer at the same instant from two tabs of the same player: stored once.
     const both = await Promise.all([
@@ -176,36 +187,51 @@ describe("/api/invent", () => {
     expect(both.every((r) => r.body.ok)).toBe(true);
     expect((await docOf(room.sessionId)).game!.round.answers).toHaveLength(4);
 
-    // Everyone answered → voting, cards anonymous, same order for everyone.
+    // Everyone answered → voting: 4 fake answers + the real one, anonymous, same order for everyone.
     h = await room.host("state");
     const g = h.body.view!.game!;
     expect(g.phase).toBe("voting");
-    expect(g.cards!.every((c) => c.author === null && c.votes === null && c.points === null)).toBe(true);
+    expect(g.cards).toHaveLength(5);
+    expect(g.cards!.every((c) => c.author === null && c.votes === null && c.points === null && c.truth === false)).toBe(true);
+    // Nothing tells the real card apart: same fields, same id shape.
+    expect(new Set(g.cards!.map((c) => Object.keys(c).sort().join()))).toEqual(new Set([Object.keys(g.cards![0]).sort().join()]));
+    expect(g.cards!.every((c) => /^[a-z0-9]{12}$/.test(c.id))).toBe(true);
+    expect(g.cards!.filter((c) => c.text === truth)).toHaveLength(1);
     const views = await Promise.all(NAMES.map((n) => room.guest(n, "state")));
     for (const v of views) {
       expect(v.body.view!.game!.cards!.map((c) => c.id)).toEqual(g.cards!.map((c) => c.id));
       expect(v.body.view!.game!.cards!.filter((c) => c.mine)).toHaveLength(1);
-      expect(JSON.stringify(v.body.view)).not.toMatch(/authorId|"author":\{/);
+      expect(v.body.view!.canVote).toBe(true);
+      expect(JSON.stringify(v.body.view)).not.toMatch(/authorId|truthId|"author":\{|"truth":true/);
     }
     const doc = await docOf(room.sessionId);
+    const truthId = doc.game!.round.truthId!;
     const idOf = (name: string) => doc.game!.round.answers.find((a) => a.authorId === views[NAMES.indexOf(name)].body.view!.me.playerId)!.id;
 
     // Self vote refused; four phones vote at the same instant.
     expect((await room.guest("الدحام", "act", { move: { type: "vote", round: 0, answerId: idOf("الدحام") } })).body.error).toBe("IV_OWN_ANSWER");
-    const votes: [string, string][] = [["أبو قاسم", "الدحام"], ["العمري", "الدحام"], ["عبدالرحمن الناهض", "الدحام"], ["الدحام", "أبو قاسم"]];
-    const results = await Promise.all(votes.map(([voter, author]) => room.guest(voter, "act", { move: { type: "vote", round: 0, answerId: idOf(author) } })));
+    // Two fooled by الدحام, one picks the real answer, الدحام himself is fooled by أبو قاسم.
+    const votes: [string, string][] = [["أبو قاسم", "الدحام"], ["العمري", "الدحام"], ["عبدالرحمن الناهض", "truth"], ["الدحام", "أبو قاسم"]];
+    const results = await Promise.all(
+      votes.map(([voter, target]) => room.guest(voter, "act", { move: { type: "vote", round: 0, answerId: target === "truth" ? truthId : idOf(target) } })),
+    );
     expect(results.map((r) => r.body.error ?? "ok")).toEqual(["ok", "ok", "ok", "ok"]);
 
-    // Reveal: authors, votes and points on the same cards, same order.
+    // Reveal: the real answer marked, authors, votes and points on the same cards, same order.
     h = await room.host("state");
     const rev = h.body.view!.game!;
     expect(rev.phase).toBe("reveal");
     expect(rev.cards!.map((c) => c.id)).toEqual(g.cards!.map((c) => c.id));
+    expect(rev.cards!.find((c) => c.id === truthId)).toMatchObject({ text: truth, truth: true, author: null, votes: 1, points: null });
+    expect(rev.cards!.filter((c) => c.truth)).toHaveLength(1);
     const top = rev.cards!.find((c) => c.id === idOf("الدحام"))!;
-    expect(top).toMatchObject({ author: { name: "الدحام" }, votes: 3, points: 300 });
+    expect(top).toMatchObject({ author: { name: "الدحام" }, votes: 2, points: 200 });
     expect(rev.cards!.find((c) => c.id === idOf("أبو قاسم"))).toMatchObject({ votes: 1, points: 100 });
     const scores = Object.fromEntries(rev.standings.map((r) => [r.name, r.score]));
-    expect(scores).toEqual({ الدحام: 300, "أبو قاسم": 100, العمري: 0, "عبدالرحمن الناهض": 0 });
+    expect(scores).toEqual({ الدحام: 200, "أبو قاسم": 100, العمري: 0, "عبدالرحمن الناهض": 100 });
+    // Every phone sees the same reveal.
+    const phone = (await room.guest("العمري", "state")).body.view!.game!;
+    expect(phone.cards!.find((c) => c.truth)!.id).toBe(truthId);
 
     // Refreshes and late votes never change the score.
     for (let i = 0; i < 3; i++) await room.host("state");
@@ -213,6 +239,14 @@ describe("/api/invent", () => {
     expect((await room.guest("العمري", "act", { move: { type: "answer", round: 0, text: "متأخر جدًا" } })).body.error).toBe("IV_ANSWERED");
     const total = Object.values((await docOf(room.sessionId)).game!.scores).reduce((a, b) => a + b, 0);
     expect(total).toBe(400);
+    // Next round: a new question, a new real answer, a new random id.
+    await age(room.sessionId, 10000);
+    await age(room.sessionId, 8000);
+    h = await room.host("state");
+    expect(h.body.view!.game!.roundIndex).toBe(1);
+    const next = (await docOf(room.sessionId)).game!;
+    expect(next.questions![1].id).not.toBe(next.questions![0].id);
+    expect(JSON.stringify(h.body.view)).not.toContain(next.questions![1].answer!);
   });
 
   it("host timer edits apply to the running phase and reach every device", async () => {
@@ -283,36 +317,32 @@ describe("/api/invent", () => {
   });
 });
 
-describe("/api/invent public rooms (the host's own questions)", () => {
-  const QS = ["وش أغرب أكلة جربتها؟", "لو صرت مدير يوم واحد وش أول قرار؟", "وش أسوأ هدية جاتك؟"];
-
-  it("refuses a room without questions, or a match longer than its questions", async () => {
-    expect((await call<never>(POST, { action: "create" })).body.error).toBe("IV_QUESTIONS");
-    expect((await call<never>(POST, { action: "create", questions: ["", "   "] })).body.error).toBe("IV_QUESTIONS");
-    expect((await call<never>(POST, { action: "create", questions: ["x".repeat(201)] })).body.error).toBe("IV_QUESTIONS");
-    expect((await call<never>(POST, { action: "create", questions: QS, rounds: 4 })).body.error).toBe("IV_ROUNDS");
-  });
-
-  it("stores the questions with the room and plays only those (never the Ahaji set)", async () => {
-    const room = await openRoom(["أ", "ب", "ج"], { questions: [...QS, ` ${QS[0]} `, ""], rounds: 3, answerSeconds: 20 });
+describe("/api/invent public rooms", () => {
+  it("a public room plays the question bank and is filed under the public entry", async () => {
+    const room = await openRoom(["أ", "ب", "ج"], { rounds: 3, answerSeconds: 20 });
     let h = await room.host("state");
-    expect(h.body.view!.limits.questions).toBe(3);
+    expect(h.body.view!.limits.questions).toBe(25);
     expect(h.body.view!.settings).toEqual({ rounds: 3, answerSeconds: 20, voteSeconds: 30 });
-    expect((await room.host("settings", { rounds: 4 })).status).toBe(400);
-
-    const row = await pg.query<{ config: { questionSet: string; questions: { text: string }[] }; game_key: string }>(
+    expect((await room.host("settings", { rounds: 26 })).status).toBe(400);
+    // Host-written questions are no longer taken.
+    const row = await pg.query<{ config: { questionSet: string; questions?: unknown }; game_key: string }>(
       "select config, game_key from public.game_sessions where id = $1",
       [room.sessionId],
     );
     expect(row.rows[0].game_key).toBe("invent");
     expect(row.rows[0].config.questionSet).toBe("custom");
-    expect(row.rows[0].config.questions.map((q) => q.text)).toEqual(QS);
+    expect(row.rows[0].config.questions).toBeUndefined();
 
     h = await room.host("start");
-    const shown = h.body.view!.game!.question.text;
-    expect(QS).toContain(shown);
-    expect((await room.guest("أ", "state")).body.view!.game!.question.text).toBe(shown);
-    expect((await docOf(room.sessionId)).game!.questions!.map((q) => q.text).sort()).toEqual([...QS].sort());
+    const played = (await docOf(room.sessionId)).game!.questions!;
+    expect(played).toHaveLength(3);
+    expect(played.every((q) => /^q\d\d$/.test(q.id) && q.answer)).toBe(true);
+    expect(h.body.view!.game!.question.text).toBe(played[0].text);
+    expect((await room.guest("أ", "state")).body.view!.game!.question).toEqual({ id: played[0].id, text: played[0].text });
+  });
+
+  it("a match longer than the bank is refused", async () => {
+    expect((await call<never>(POST, { action: "create", rounds: 26 })).body.error).toBe("IV_ROUNDS");
   });
 
   it("an Ahaji room is filed under the private catalog entry", async () => {

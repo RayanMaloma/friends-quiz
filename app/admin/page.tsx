@@ -24,7 +24,7 @@ export default function AdminGamesPage() {
   const router = useRouter();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
-  const [ahaji, setAhaji] = useState<{ id: string; text: string }[] | null>(null);
+  const [ahaji, setAhaji] = useState<{ id: string; text: string; answer: string }[] | null>(null);
   const [copied, setCopied] = useState<{ title: string; removed: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
@@ -91,10 +91,6 @@ export default function AdminGamesPage() {
   }
 
   async function playBuiltin(key: string) {
-    if (key === "invent") {
-      router.push("/invent/new");
-      return;
-    }
     setBusy(key);
     setError(null);
     const kind = key === "mafia" ? "mafia" : "invent";
@@ -191,7 +187,7 @@ export default function AdminGamesPage() {
                 {c.key === "invent_ahaji" && (
                   <button
                     onClick={async () => {
-                      const res = await api<{ questions: { id: string; text: string }[] }>("/api/admin", { action: "inventAhajiQuestions" });
+                      const res = await api<{ questions: { id: string; text: string; answer: string }[] }>("/api/admin", { action: "inventAhajiQuestions" });
                       if (res.ok) setAhaji(res.questions);
                     }}
                     className="abtn flex-1"
@@ -246,10 +242,12 @@ export default function AdminGamesPage() {
       )}
 
       {ahaji && (
-        <Modal title={`أسئلة أحاجي (${ahaji.length})`} onClose={() => setAhaji(null)} wide>
+        <Modal title={`أسئلة اخترع إجابتك (${ahaji.length})`} onClose={() => setAhaji(null)} wide>
           <ol className="flex list-decimal flex-col gap-1.5 ps-6 text-sm font-bold">
             {ahaji.map((q) => (
-              <li key={q.id}>{q.text}</li>
+              <li key={q.id}>
+                {q.text} <span className="text-mute">← {q.answer}</span>
+              </li>
             ))}
           </ol>
         </Modal>

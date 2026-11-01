@@ -83,6 +83,8 @@ const MESSAGES: Record<string, string> = {
   IV_ANSWERED: "أرسلت إجابتك خلاص",
   IV_VOTED: "صوّتت خلاص",
   IV_OWN_ANSWER: "ما تقدر تصوّت لإجابتك 😏",
+  IV_TRUTH: "هذي الإجابة الصحيحة! اكتب وحدة مزيفة 😏",
+  IV_TAKEN: "أحد كتبها قبلك، جرّب غيرها",
   IV_BAD_CHOICE: "اختيار غير صالح",
   AUTH_REQUIRED: "سجّل دخولك أول",
   INVALID_CREDENTIALS: "البريد أو كلمة المرور غير صحيحة",
@@ -91,7 +93,6 @@ const MESSAGES: Record<string, string> = {
   BAD_EMAIL: "البريد غير صحيح",
   WEAK_PASSWORD: "كلمة المرور ٨ أحرف على الأقل",
   SIGNUP_UNAVAILABLE: "التسجيل غير متاح حاليًا",
-  IV_QUESTIONS: "اكتب سؤال واحد على الأقل (لين ١٠٠ سؤال، كل سؤال لين ٢٠٠ حرف)",
   IV_ROUNDS: "عدد الجولات أكثر من الأسئلة",
   IV_NOT_SEATED: "دخلت بعد ما بدأت الجولة، انتظر المباراة الجاية",
 };

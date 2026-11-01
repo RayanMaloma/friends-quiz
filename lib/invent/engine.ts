@@ -10,10 +10,14 @@
  * - Timers count *active* time: `remaining = max(0, duration − elapsed)`,
  *   where `elapsed` excludes pauses and `duration` is read live from the
  *   settings, so the host can shorten or lengthen the running phase.
- * - A round is scored exactly once, by the voting → reveal transition.
- * - Questions come from the room's own pool (passed in by the server): the
- *   host's questions in a public room, the Ahaji set in the private one. The
- *   match keeps the picked questions, so nothing else is needed to show them.
+ * - Every question has one real answer. Players write fake ones; voting
+ *   shows the real answer shuffled in among them, and the reveal shows
+ *   which one it was. The real answer never leaves the server before then.
+ * - A round is scored exactly once, by the voting → reveal transition:
+ *   100 points for picking the real answer, and 100 to a fake answer's
+ *   author for every player it fooled.
+ * - Questions come from the pool the server passes in (the question bank).
+ *   The match keeps the picked questions, so nothing else is needed to show them.
  */
 
 /* ------------------------------------------------------------------ */
@@ -23,16 +27,13 @@
 export const POINTS_PER_VOTE = 100;
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 16;
-export const DEFAULT_ROUNDS = 36;
+export const DEFAULT_ROUNDS = 25;
 export const DEFAULT_ANSWER_SECONDS = 60;
 export const DEFAULT_VOTE_SECONDS = 30;
 export const MAX_TIMER_SECONDS = 3600;
 export const MAX_ANSWER_LENGTH = 200;
-/** A host's own question set (public rooms). */
-export const MAX_QUESTIONS = 100;
-export const MAX_QUESTION_LENGTH = 200;
-/** Size of the private Ahaji question set (its text stays on the server: lib/invent/questions.ts). */
-export const AHAJI_QUESTION_COUNT = 46;
+/** Size of the question bank (its questions and answers stay on the server: lib/invent/questions.ts). */
+export const QUESTION_BANK_SIZE = 25;
 export const REVEAL_MS = 10000;
 export const LEADERBOARD_MS = 8000;
 
@@ -42,6 +43,8 @@ export type Phase = "answering" | "voting" | "reveal" | "leaderboard" | "final";
 export interface InventQuestion {
   id: string;
   text: string;
+  /** The real answer: server only until the reveal. Missing in matches saved before real answers existed. */
+  answer?: string;
 }
 
 export interface InventSettings {
@@ -63,15 +66,17 @@ export interface InventRound {
   questionId: string;
   /** In submission order (server only). */
   answers: InventAnswer[];
-  /** Answer ids in the one shuffled order the whole room sees (set when voting opens). */
+  /** Card ids (the fake answers and the real one) in the one shuffled order the whole room sees (set when voting opens). */
   order: string[];
-  /** voterId → answerId. */
+  /** The real answer's card id: random like the others, set when voting opens. null before (and in older matches). */
+  truthId?: string | null;
+  /** voterId → card id. */
   votes: Record<string, string>;
-  /** Set once, when the round is scored: answerId → votes received. */
+  /** Set once, when the round is scored: card id → votes received. */
   tally: Record<string, number> | null;
   /** Set once, with `tally`: playerId → points earned this round. */
   gained: Record<string, number> | null;
-  /** Fewer than two answers: nothing to vote on, zero points. */
+  /** Nothing to choose between (no fake answers): straight to the reveal, zero points. */
   votingSkipped: boolean;
 }
 
@@ -154,29 +159,34 @@ export const isTimerSeconds = (v: unknown): v is number =>
 export const isRoundCount = (v: unknown, poolSize: number): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= poolSize;
 
-/**
- * A host's question list: trimmed, control characters and repeated spaces
- * removed, empty lines and duplicates dropped. null when it can't be played
- * (none left, too many, or one too long).
- */
-export function cleanQuestions(raw: unknown): InventQuestion[] | null {
-  if (!Array.isArray(raw) || raw.length > MAX_QUESTIONS * 2) return null;
-  const seen = new Set<string>();
-  const out: InventQuestion[] = [];
-  for (const item of raw) {
-    if (typeof item !== "string") return null;
-    const text = item.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
-    if (!text) continue;
-    if ([...text].length > MAX_QUESTION_LENGTH) return null;
-    if (seen.has(text)) continue;
-    seen.add(text);
-    out.push({ id: `c${String(out.length + 1).padStart(3, "0")}`, text });
-  }
-  return out.length >= 1 && out.length <= MAX_QUESTIONS ? out : null;
-}
-
 export function newDoc(settings: InventSettings = DEFAULT_SETTINGS): InventDoc {
   return { v: 1, settings: { ...settings }, game: null };
+}
+
+/**
+ * For comparing answers: no diacritics, tatweel, invisible marks,
+ * punctuation or spaces; the alef/hamza forms, ى/ي and ة/ه folded together;
+ * a leading «ال» dropped from each word; Latin lower-cased; Arabic-Indic
+ * digits as 0–9. So «المَزمار», «مزمار» and «المزمار!» all compare equal.
+ */
+export function normalizeAnswer(raw: string): string {
+  return raw
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u06d6-\u06ed\u0640]|\p{Cf}/gu, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/[ىی]/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/ء/g, "")
+    .replace(/ک/g, "ك")
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0))
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .map((w) => (w.length > 3 && w.startsWith("ال") ? w.slice(2) : w))
+    .join("");
 }
 
 /** Trim, collapse whitespace, strip control characters. null = empty or too long. */
@@ -228,8 +238,11 @@ export const isSeated = (g: InventGame, playerId: string) => g.players.some((p) 
 
 export const answerOf = (r: InventRound, playerId: string) => r.answers.find((a) => a.authorId === playerId) ?? null;
 
-/** A player can vote when there is at least one answer that is not theirs. */
-export const canVote = (r: InventRound, playerId: string) => r.answers.some((a) => a.authorId !== playerId);
+/** A player can vote when there is a card that is not theirs (the real answer always is). */
+export const canVote = (r: InventRound, playerId: string) => !!r.truthId || r.answers.some((a) => a.authorId !== playerId);
+
+/** The real answer of the round being played (undefined in older matches). */
+export const truthOf = (g: InventGame): string | undefined => g.questions?.[g.round.index]?.answer || undefined;
 
 /**
  * Everyone expected has acted, so the phase can close before its timer.
@@ -254,7 +267,7 @@ export function phaseComplete(g: InventGame, active: ReadonlySet<string>): boole
 /* ------------------------------------------------------------------ */
 
 function newRound(index: number, questionId: string): InventRound {
-  return { index, questionId, answers: [], order: [], votes: {}, tally: null, gained: null, votingSkipped: false };
+  return { index, questionId, answers: [], order: [], truthId: null, votes: {}, tally: null, gained: null, votingSkipped: false };
 }
 
 /** Enters `phase` at time `at`, keeping the paused/running state. */
@@ -269,32 +282,62 @@ function enter(g: InventGame, phase: Phase, at: number, patch: Partial<InventGam
   };
 }
 
-/** Counts the votes and adds the points. Only ever called once per round. */
-function score(g: InventGame, votingSkipped: boolean): Pick<InventGame, "round" | "scores"> {
-  const tally: Record<string, number> = Object.fromEntries(g.round.answers.map((a) => [a.id, 0]));
+/**
+ * Counts the votes and adds the points. Only ever called once per round:
+ * picking the real answer earns the voter 100; a fake answer earns its
+ * author 100 for every other player who picked it.
+ */
+function score(g: InventGame, round: InventRound, votingSkipped: boolean): Pick<InventGame, "round" | "scores"> {
+  const truthId = round.truthId ?? null;
+  const tally: Record<string, number> = Object.fromEntries(round.answers.map((a) => [a.id, 0]));
+  if (truthId) tally[truthId] = 0;
   const gained: Record<string, number> = Object.fromEntries(g.players.map((p) => [p.id, 0]));
-  const authorOf = new Map(g.round.answers.map((a) => [a.id, a.authorId]));
-  for (const [voterId, answerId] of Object.entries(g.round.votes)) {
-    const author = authorOf.get(answerId);
+  const authorOf = new Map(round.answers.map((a) => [a.id, a.authorId]));
+  for (const [voterId, cardId] of Object.entries(round.votes)) {
     // Checked when the vote came in; checked again here so a bad record can never score.
-    if (!author || author === voterId || !isSeated(g, voterId)) continue;
-    tally[answerId] += 1;
+    if (!isSeated(g, voterId)) continue;
+    if (cardId === truthId) {
+      tally[cardId] += 1;
+      gained[voterId] = (gained[voterId] ?? 0) + POINTS_PER_VOTE;
+      continue;
+    }
+    const author = authorOf.get(cardId);
+    if (!author || author === voterId) continue;
+    tally[cardId] += 1;
     gained[author] = (gained[author] ?? 0) + POINTS_PER_VOTE;
   }
   const scores = { ...g.scores };
   for (const [id, pts] of Object.entries(gained)) scores[id] = (scores[id] ?? 0) + pts;
-  return { round: { ...g.round, tally, gained, votingSkipped }, scores };
+  return { round: { ...round, tally, gained, votingSkipped }, scores };
+}
+
+/** A card id no answer of the round has. */
+function freshCardId(r: InventRound, rng: Rng): string {
+  for (;;) {
+    const id = randomId(rng);
+    if (!r.answers.some((a) => a.id === id)) return id;
+  }
 }
 
 /** The phase after the current one, entered at `at`. */
 function next(g: InventGame, at: number, rng: Rng): InventGame {
   switch (g.phase) {
-    case "answering":
-      // Fewer than two answers: nobody can vote for someone else's. Round scores zero.
-      if (g.round.answers.length < 2) return enter(g, "reveal", at, score(g, true));
-      return enter(g, "voting", at, { round: { ...g.round, order: shuffle(g.round.answers.map((a) => a.id), rng) } });
+    case "answering": {
+      const ids = g.round.answers.map((a) => a.id);
+      if (truthOf(g)) {
+        // The real answer joins the fake ones under a random id, in a random place.
+        const truthId = freshCardId(g.round, rng);
+        const round = { ...g.round, truthId, order: shuffle([...ids, truthId], rng) };
+        // No fake answers: nothing to choose between. Round scores zero.
+        if (ids.length === 0) return enter(g, "reveal", at, score(g, round, true));
+        return enter(g, "voting", at, { round });
+      }
+      // Older matches (no real answers): fewer than two answers means nobody can vote for someone else's.
+      if (ids.length < 2) return enter(g, "reveal", at, score(g, g.round, true));
+      return enter(g, "voting", at, { round: { ...g.round, order: shuffle(ids, rng) } });
+    }
     case "voting":
-      return enter(g, "reveal", at, score(g, false));
+      return enter(g, "reveal", at, score(g, g.round, false));
     case "reveal":
       return enter(g, "leaderboard", at);
     case "leaderboard": {
@@ -356,7 +399,9 @@ export function startGame(
   if (pool.length === 0) return { error: "NO_QUESTIONS" };
   // Never more rounds than questions, even if the pool shrank since the setting was saved.
   const rounds = Math.min(doc.settings.rounds, pool.length);
-  const questions = shuffle(pool, rng).slice(0, rounds).map((q) => ({ id: q.id, text: q.text }));
+  const questions = shuffle(pool, rng)
+    .slice(0, rounds)
+    .map((q) => ({ id: q.id, text: q.text, ...(q.answer ? { answer: q.answer } : {}) }));
   const questionIds = questions.map((q) => q.id);
   const game: InventGame = {
     id: randomId(rng),
@@ -410,6 +455,11 @@ export function applyPlayerMove(doc: InventDoc, playerId: string, move: PlayerMo
     if (existing) return existing.text === text ? { doc } : { error: "IV_ANSWERED" };
     if (g.phase !== "answering") return { error: "IV_CLOSED" };
     if (!text) return { error: "IV_EMPTY" };
+    // The real answer (however it is spelled) and another player's answer are taken.
+    const key = normalizeAnswer(text);
+    const truth = truthOf(g);
+    if (truth && key === normalizeAnswer(truth)) return { error: "IV_TRUTH" };
+    if (g.round.answers.some((a) => normalizeAnswer(a.text) === key)) return { error: "IV_TAKEN" };
     const answer: InventAnswer = { id: uniqueAnswerId(g.round), authorId: playerId, text, at: now };
     return { doc: { ...doc, game: { ...g, round: { ...g.round, answers: [...g.round.answers, answer] } } } };
   }
@@ -417,9 +467,11 @@ export function applyPlayerMove(doc: InventDoc, playerId: string, move: PlayerMo
   const previous = g.round.votes[playerId];
   if (previous) return previous === move.answerId ? { doc } : { error: "IV_VOTED" };
   if (g.phase !== "voting") return { error: "IV_CLOSED" };
-  const target = g.round.answers.find((a) => a.id === move.answerId);
-  if (!target) return { error: "IV_BAD_CHOICE" };
-  if (target.authorId === playerId) return { error: "IV_OWN_ANSWER" };
+  if (!g.round.truthId || move.answerId !== g.round.truthId) {
+    const target = g.round.answers.find((a) => a.id === move.answerId);
+    if (!target) return { error: "IV_BAD_CHOICE" };
+    if (target.authorId === playerId) return { error: "IV_OWN_ANSWER" };
+  }
   return { doc: { ...doc, game: { ...g, round: { ...g.round, votes: { ...g.round.votes, [playerId]: move.answerId } } } } };
 }
 

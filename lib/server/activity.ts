@@ -40,11 +40,11 @@ const seconds = (v: unknown) => (num(v) === null ? "—" : `${v} ث`);
 
 function inventDetail(config: Obj, match: Obj): Pick<SessionDetail, "settings" | "questions" | "result"> {
   const settings = obj(match.settings);
-  const custom = config.questionSet === "custom";
-  const questions = custom && Array.isArray(config.questions)
-    ? (config.questions as unknown[]).map((q) => String(obj(q).text ?? ""))
-    : null;
   const game = obj(match.game);
+  // Older public rooms kept their host's own questions; every other room plays the bank.
+  const hostWritten = config.questionSet === "custom" && Array.isArray(config.questions);
+  const played = Array.isArray(game.questions) ? (game.questions as unknown[]) : hostWritten ? (config.questions as unknown[]) : null;
+  const questions = played ? played.map((q) => String(obj(q).text ?? "")) : null;
   let result: string | null = null;
   if (game.phase === "final") {
     const players = Array.isArray(game.players) ? (game.players as Obj[]) : [];
@@ -55,7 +55,7 @@ function inventDetail(config: Obj, match: Obj): Pick<SessionDetail, "settings" |
   }
   return {
     settings: [
-      ["الأسئلة", custom ? `${questions?.length ?? 0} (من المضيف)` : "أحاجي (٤٦)"],
+      ["الأسئلة", hostWritten ? `${(config.questions as unknown[]).length} (من المضيف)` : "بنك الأسئلة (٢٥)"],
       ["الجولات", String(num(settings.rounds) ?? "—")],
       ["وقت الإجابة", seconds(settings.answerSeconds)],
       ["وقت التصويت", seconds(settings.voteSeconds)],
