@@ -1016,8 +1016,7 @@ html:has(.mf) body {
   font-weight: 500;
   font-size: 0.95em;
 }
-.mf-source.is-recorded,
-.mf-source.is-tts {
+.mf-source.is-recorded {
   background: rgba(69, 107, 89, 0.25);
   color: var(--mf-emerald-lit);
 }

@@ -16,7 +16,6 @@ import { MAX_PLAYERS, MIN_PLAYERS, roleCounts, ROLE_INFO, type Role } from "@/li
 import { cue, type Cue, type CueKey } from "@/lib/mafia/narration";
 import type { MafiaHostView, MafiaPublicMatch, MafiaPublicPlayer } from "@/lib/mafia/views";
 import { MafiaAudioProvider, useMafiaAudio } from "./audio/AudioProvider";
-import type { Ambience } from "./audio/sound";
 import { Emblem } from "./Emblem";
 import { Scene, type Mood } from "./Scene";
 import {
@@ -66,7 +65,7 @@ export function MafiaHost({ creds }: { creds: HostCreds }) {
   if (!view) return <Plain><span className="mf-loader" aria-label="جاري التحميل" /></Plain>;
 
   return (
-    <MafiaAudioProvider session={{ sessionId, hostToken }}>
+    <MafiaAudioProvider>
       <Tv view={view} receivedAt={receivedAt} send={send} connected={connected} />
     </MafiaAudioProvider>
   );
@@ -100,17 +99,6 @@ function moodOf(m: MafiaPublicMatch | null): Mood {
   }
 }
 
-const AMBIENCE: Record<Mood, Ambience> = {
-  lobby: "lobby",
-  dusk: "night",
-  night: "night",
-  blood: "night",
-  dawn: "day",
-  day: "day",
-  crimson: "crimson",
-  gold: "gold",
-};
-
 const NIGHT_PHASE = new Set(["nightfall", "mafia", "detective", "doctor"]);
 
 const nameOf = (m: MafiaPublicMatch, id: string | null) => m.players.find((p) => p.id === id)?.name ?? "";
@@ -134,28 +122,15 @@ function markSpoken(id: string): boolean {
 }
 
 /**
- * Plays the sound and narration of each phase as it starts, driven by the
+ * Plays the narration of each phase as it starts, driven by the
  * server's phase changes. Keyed on the phase's start time, so a reload
  * mid-phase doesn't replay old lines. Returns the current subtitle.
  */
 function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number): Cue | null {
-  const { sound, narrator, unlocked } = useMafiaAudio();
+  const { narrator } = useMafiaAudio();
   const [subtitle, setSubtitle] = useState<Cue | null>(null);
   const played = useRef<string | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const mood = moodOf(m);
-  const nightPhase =
-    !!m &&
-    !m.paused &&
-    (m.phase === "mafia" || m.phase === "detective" || m.phase === "doctor" || (m.phase === "intro" && now - m.phaseStartedAt >= INTRO.suspenseAt));
-
-  useEffect(() => {
-    sound.setAmbience(AMBIENCE[mood]);
-  }, [sound, mood, unlocked]);
-  useEffect(() => {
-    sound.heartbeat(nightPhase);
-    return () => sound.heartbeat(false);
-  }, [sound, nightPhase]);
 
   const key = m ? `${m.round}:${m.phase}:${m.phaseStartedAt}` : "lobby";
   const age = m ? now - m.phaseStartedAt : 0;
@@ -193,31 +168,26 @@ function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number)
           say(line("roles"));
           break;
         case "nightfall":
-          sound.play("nightfall");
           at(900, () => say(line(s.round === 1 ? "night_first" : "night")));
           break;
         case "mafia":
         case "detective":
         case "doctor":
-          sound.play("phase");
           at(400, () => say(line(s.phase as CueKey)));
           break;
         case "dawn":
-          sound.play("dawn");
           at(500, () => say(line("dawn")));
           break;
         case "discussion":
           say(line("discussion"));
           break;
         case "voting":
-          sound.play("alarm");
           at(1200, () => say(line("voting")));
           break;
         case "verdict":
           say(line("verdict"));
           break;
         case "gameOver":
-          sound.play(s.winner?.team === "mafia" ? "mafiaWin" : "cityWin");
           at(1800, () => say(line(s.winner?.team === "mafia" ? "win_mafia" : "win_citizens")));
           break;
       }
@@ -229,17 +199,9 @@ function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number)
       // A rematch starts straight from the finale: its last line and subtitle end here.
       narrator.stop();
       setSubtitle(null);
-      at(0, () => sound.play("introDark"));
-      at(INTRO.suspenseAt, () => sound.play("introHit"));
       at(INTRO.narrateAt, () => say(line("intro")));
-      at(INTRO.countAt - 300, () => sound.play("suspense"));
-      for (const ms of [INTRO.countAt, INTRO.countAt + 1000, INTRO.countAt + 2000]) at(ms, () => sound.play("count"));
     }
-
-    // The suspense before the reveal inside dawn and verdict (the result itself isn't known yet).
-    if (s.phase === "dawn") at(DAWN_REVEAL_MS - 2600, () => sound.play("suspense"));
-    if (s.phase === "verdict") at(VERDICT_REVEAL_MS - 2600, () => sound.play("suspense"));
-  }, [key, narrator, sound, sessionId]);
+  }, [key, narrator, sessionId]);
 
   // The reveal: the server only sends the dawn / verdict result at its
   // reveal moment, so it is announced the moment it arrives.
@@ -258,39 +220,26 @@ function useDirector(sessionId: string, m: MafiaPublicMatch | null, now: number)
     if (s.phase === "dawn" && s.dawn) {
       const d = s.dawn;
       if (d.outcome === "killed") {
-        sound.play("sting");
         say(cue("dawn_killed", nameOf(s, d.victimId)));
       } else if (d.outcome === "saved") {
-        sound.play("saved");
         say(cue("dawn_saved", nameOf(s, d.victimId)));
       } else {
-        sound.play("quiet");
         say(cue("dawn_quiet"));
       }
     } else if (s.phase === "verdict" && s.verdict) {
       const v = s.verdict;
       if (v.outcome === "eliminated") {
-        sound.play("sting");
         say(cue("verdict_eliminated", nameOf(s, v.targetId)));
       } else {
-        sound.play("quiet");
         say(cue(v.outcome === "skip" ? "verdict_skip" : "verdict_tie"));
       }
     }
-  }, [reveal, narrator, sound, sessionId]);
+  }, [reveal, narrator, sessionId]);
 
   useEffect(() => () => {
     for (const t of timers.current) clearTimeout(t);
     narrator.stop();
   }, [narrator]);
-
-  // Clock ticks in the last ten seconds of the discussion and the vote.
-  const left = m ? remainingMs(m, now) : null;
-  const sec = left === null ? null : Math.ceil(left / 1000);
-  const ticking = !!m && !m.paused && (m.phase === "discussion" || m.phase === "voting");
-  useEffect(() => {
-    if (ticking && sec !== null && sec > 0 && sec <= 10) sound.play("tick");
-  }, [ticking, sec, sound]);
 
   // Subtitles fade after a while.
   useEffect(() => {
@@ -342,7 +291,7 @@ function Tv({ view, receivedAt, send, connected }: { view: MafiaHostView; receiv
         </div>
       )}
       {m && !audio.unlocked && (
-        <button className="mf-unlock" onClick={() => void audio.unlock()}>
+        <button className="mf-unlock" onClick={() => audio.unlock()}>
           <SpeakerIcon /> شغّل الصوت
         </button>
       )}
@@ -420,44 +369,28 @@ function TopBar({ view, run }: { view: MafiaHostView; run: (a: string, x?: Recor
 }
 
 function SoundPanel({ onClose }: { onClose: () => void }) {
-  const { settings, update, source, voices, narrator, unlock } = useMafiaAudio();
-  const tts = narrator.ttsSource();
+  const { settings, update, narrator, unlock } = useMafiaAudio();
   return (
     <div className="mf-popover" role="dialog" aria-label="الصوت والراوي">
       <div className="mf-popover-head">
         <h3>الصوت والراوي</h3>
         <button className="mf-icon-btn" onClick={onClose} aria-label="إغلاق">✕</button>
       </div>
-      <VolumeSlider label="صوت الثيم" value={settings.themeVolume} onChange={(v) => update({ themeVolume: v, muted: false })} />
       <VolumeSlider label="صوت الراوي" value={settings.narratorVolume} onChange={(v) => update({ narratorVolume: v, muted: false })} />
       <label className="mf-check">
         <input type="checkbox" checked={settings.muted} onChange={(e) => update({ muted: e.target.checked })} />
-        <span>كتم كل الأصوات</span>
+        <span>كتم الصوت</span>
       </label>
       <div className="mf-field">
         <span>الراوي</span>
-        <p className={`mf-source is-${source.kind}`}>{source.label}</p>
-        {source.kind === "recorded" && <p className="mf-hint">الأسماء: {narrator.hasServerVoice ? "خدمة الصوت" : tts.label}</p>}
+        <p className={`mf-source is-${narrator.recordedCount > 0 ? "recorded" : "none"}`}>{narrator.label}</p>
         {narrator.lastError && <p className="mf-hint">{narrator.lastError}</p>}
       </div>
-      <label className="mf-field">
-        <span>صوت النظام</span>
-        <select value={settings.voice} onChange={(e) => update({ voice: e.target.value })}>
-          <option value="auto">تلقائي</option>
-          <option value="off">نص فقط</option>
-          {voices.map((v) => (
-            <option key={v.uri} value={v.uri}>
-              {v.name} ({v.lang})
-            </option>
-          ))}
-        </select>
-        {voices.length === 0 && <p className="mf-hint">ما فيه أصوات عربية.</p>}
-      </label>
       <button
         className="mf-btn mf-btn-ghost"
-        onClick={async () => {
-          await unlock();
-          void narrator.speak(cue("intro"));
+        onClick={() => {
+          unlock();
+          void narrator.speak(cue("mafia"));
         }}
       >
         جرّب الراوي
@@ -518,7 +451,7 @@ function Lobby({ view, run }: { view: MafiaHostView; run: (a: string, x?: Record
     starting.current = true;
     setBusy(true);
     // The click unlocks audio, so the opening sequence starts with sound.
-    await unlock();
+    unlock();
     await run("start");
     starting.current = false;
     setBusy(false);
@@ -839,7 +772,7 @@ function Finale({ m, run }: { m: MafiaPublicMatch; run: (a: string, x?: Record<s
             if (starting.current) return;
             starting.current = true;
             setBusy(true);
-            await unlock();
+            unlock();
             await run("rematch");
             starting.current = false;
             setBusy(false);

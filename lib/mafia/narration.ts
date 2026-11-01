@@ -2,9 +2,8 @@
  * The narrator's script, in Saudi Arabic (Najdi).
  *
  * Every line has a key. A recorded file for a key (see public/mafia/voice)
- * is played as-is, so recorded lines never contain names; `text` is what a
- * Saudi text-to-speech voice reads and what the TV shows as a subtitle, and
- * may include the player's name.
+ * is played as-is, so recorded lines never contain names; `text` is what the
+ * TV shows as a subtitle, and may include the player's name.
  */
 export type CueKey =
   | "intro"
@@ -60,7 +59,7 @@ export const SCRIPT: Record<CueKey, string> = {
 
 export interface Cue {
   key: CueKey;
-  /** What is read aloud by text-to-speech and shown as the subtitle. */
+  /** Shown as the subtitle. */
   text: string;
   /** The player named in the line, if any. */
   name?: string;
