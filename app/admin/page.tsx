@@ -75,6 +75,19 @@ export default function AdminGamesPage() {
     await load();
   }
 
+  async function publish(key: string, title: string, visibility: Visibility) {
+    if (visibility === "private" && !window.confirm(`نشر «${title}» لكل المستخدمين؟`)) return;
+    setBusy(key);
+    setError(null);
+    const res = await api("/api/admin", { action: "publish", key });
+    setBusy(null);
+    if (!res.ok) {
+      const issues = (res.issues as { message: string }[] | undefined) ?? [];
+      setError([errorMessage(res.error), ...issues.slice(0, 3).map((i) => i.message)].join(" — "));
+    }
+    await load();
+  }
+
   async function makePublicCopy(id: string, title: string) {
     const name = window.prompt("اسم النسخة العامة", title);
     if (!name) return;
@@ -167,7 +180,7 @@ export default function AdminGamesPage() {
         {catalog
           .filter((c) => c.builtin)
           .map((c) => (
-            <li key={c.key} className="panel flex flex-col gap-3 bg-card p-4">
+            <li key={c.key} className="panel relative flex flex-col gap-3 bg-card p-4">
               <div className="flex items-start gap-3">
                 <span className="panel-sm grid size-14 shrink-0 -rotate-6 place-items-center text-3xl" style={{ background: ACCENT_HEX[c.accent] }}>
                   {c.emoji}
@@ -182,6 +195,13 @@ export default function AdminGamesPage() {
                     {c.questionCount !== null && <span>· {c.questionCount} سؤال</span>}
                   </div>
                 </div>
+                <CardMenu>
+                  {c.visibility === "public" ? (
+                    <MenuItem onClick={() => setVisibility(c.key, "private")}>إلغاء النشر</MenuItem>
+                  ) : (
+                    <MenuItem onClick={() => publish(c.key, c.title, c.visibility)}>نشر</MenuItem>
+                  )}
+                </CardMenu>
               </div>
               <div className="flex gap-2">
                 {c.key === "invent_ahaji" && (
@@ -231,6 +251,7 @@ export default function AdminGamesPage() {
                   busy={busy === g.id}
                   visibility={catalog.find((c) => c.key === g.id)?.visibility ?? "private"}
                   onVisibility={(v) => setVisibility(g.id, v)}
+                  onPublish={() => publish(g.id, g.title, catalog.find((c) => c.key === g.id)?.visibility ?? "private")}
                   onPublicCopy={() => makePublicCopy(g.id, g.title)}
                   onPlay={() => play(g.id, g.kind === "deduction")}
                   onAct={(a, x) => act(g.id, a, x)}
@@ -325,6 +346,7 @@ function GameCard({
   busy,
   visibility,
   onVisibility,
+  onPublish,
   onPublicCopy,
   onPlay,
   onAct,
@@ -333,11 +355,11 @@ function GameCard({
   busy: boolean;
   visibility: Visibility;
   onVisibility: (v: Visibility) => void;
+  onPublish: () => void;
   onPublicCopy: () => void;
   onPlay: () => void;
   onAct: (action: string, extra?: Record<string, unknown>) => void;
 }) {
-  const [menu, setMenu] = useState(false);
   const dx = g.kind === "deduction";
   const editHref = dx ? `/admin/dx/${g.id}` : `/admin/games/${g.id}`;
   const updated = new Date(g.updatedAt).toLocaleDateString("ar-SA-u-nu-latn", { day: "numeric", month: "short" });
@@ -363,12 +385,13 @@ function GameCard({
             <span>· {updated}</span>
           </div>
         </div>
-        <button onClick={() => setMenu((m) => !m)} className="abtn size-10 shrink-0" aria-label="خيارات">
-          ⋯
-        </button>
-      </div>
-      {menu && (
-        <div className="panel-sm absolute end-4 top-16 z-10 flex min-w-40 flex-col bg-card py-1" onMouseLeave={() => setMenu(false)}>
+        <CardMenu>
+          {g.status !== "archived" &&
+            (g.status === "published" && visibility === "public" ? (
+              <MenuItem onClick={() => onAct("setStatus", { status: "draft" })}>إلغاء النشر</MenuItem>
+            ) : (
+              <MenuItem onClick={onPublish}>نشر</MenuItem>
+            ))}
           <MenuItem onClick={() => onAct(dx ? "dxDuplicate" : "duplicateGame")}>نسخ اللعبة</MenuItem>
           {dx && <MenuItem onClick={onPublicCopy}>نسخة عامة (بدون أسماء وصور)</MenuItem>}
           {g.status === "archived" ? (
@@ -384,8 +407,8 @@ function GameCard({
           >
             حذف نهائي
           </MenuItem>
-        </div>
-      )}
+        </CardMenu>
+      </div>
       <div className="flex gap-2">
         <Link href={editHref} className="abtn flex-1">
           تعديل
@@ -399,6 +422,27 @@ function GameCard({
         </button>
       </div>
     </li>
+  );
+}
+
+/** The ⋯ button of a game card and its menu (positioned against the card). */
+function CardMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen((o) => !o)} className="abtn size-10 shrink-0" aria-label="خيارات">
+        ⋯
+      </button>
+      {open && (
+        <div
+          className="panel-sm absolute end-4 top-16 z-10 flex min-w-40 flex-col bg-card py-1"
+          onClick={() => setOpen(false)}
+          onMouseLeave={() => setOpen(false)}
+        >
+          {children}
+        </div>
+      )}
+    </>
   );
 }
 

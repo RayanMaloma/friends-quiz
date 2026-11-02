@@ -80,7 +80,8 @@ The default content recreates the mechanics of *Secret Hitler* (CC BY-NC-SA 4.0)
 - **Game definition vs session.** Definitions (built-in rules, or games authored in `/admin`) are edited only by the
   super admin. Each is **public** or **private** (`fq_catalog`, `games.visibility`); regular users see and open only
   public, published ones — enforced in `/api/catalog` and again by every `create` endpoint (`lib/server/access.ts`), so a
-  private game reads as missing even by direct id. Defaults: المافيا, اخترع إجابتك and the public «المهرب السري» are public;
+  private game reads as missing even by direct id. **⋯ → نشر** on any game card in `/admin` makes it published and
+  public in one step (refused while the game has problems). Defaults: المافيا, اخترع إجابتك and the public «المهرب السري» are public;
   the Ahaji question set and «المقيم السري» are private. A session belongs to its creator (`owner_id`) and holds its own
   settings; host actions still need the room's host token, and `/games` lets an owner take their open room back.
 - **«المهرب السري»** = a public copy of the private «المقيم السري» made with **⋯ → نسخة عامة** in `/admin`

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { migratedDb } from "./helpers/db";
 import { newDxDoc } from "@/lib/dx/doc";
+import { normalizeGameDoc } from "@/lib/game/doc";
 
 // Accounts and access end to end, through the real route handlers, on the real
 // migrations: register / login / logout / persistent session (refresh), who
@@ -292,6 +293,39 @@ describe("the super admin", () => {
     await call(ADMIN, { action: "setVisibility", key: "invent_ahaji", visibility: "private" });
     as("sara");
     expect(((await call(CATALOG, { action: "list" })).body.games as { key: string }[]).map((g) => g.key)).not.toContain("invent_ahaji");
+  });
+
+  it("publishes a draft or a built-in to everyone in one step", async () => {
+    as("admin");
+    const created = await call(ADMIN, { action: "dxCreate", template: "classic" });
+    const id = (created.body.game as { id: string }).id;
+    as("sara");
+    expect(((await call(CATALOG, { action: "list" })).body.games as { key: string }[]).map((g) => g.key)).not.toContain(id);
+    as("admin");
+    expect((await call(ADMIN, { action: "publish", key: id })).body.ok).toBe(true);
+    expect((await call(ADMIN, { action: "publish", key: "invent_ahaji" })).body.ok).toBe(true);
+    const row = await pg.query<{ visibility: string; status: string }>("select visibility, status from public.games where id = $1", [id]);
+    expect(row.rows[0]).toEqual({ visibility: "public", status: "published" });
+    as("sara");
+    const keys = ((await call(CATALOG, { action: "list" })).body.games as { key: string }[]).map((g) => g.key);
+    expect(keys).toContain(id);
+    expect(keys).toContain("invent_ahaji");
+    as("admin");
+    await call(ADMIN, { action: "setVisibility", key: "invent_ahaji", visibility: "private" });
+  });
+
+  it("refuses to publish an unplayable game, and regular users", async () => {
+    as("admin");
+    const doc = normalizeGameDoc({ title: "فاضية" });
+    const created = (await rpc("fq_admin_save_game", { p_id: null, p_doc: doc, p_expected_version: null, p_status: "draft" })) as { game: { id: string } };
+    const id = created.game.id;
+    const res = await call(ADMIN, { action: "publish", key: id });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("PUBLISH_BLOCKED");
+    const row = await pg.query<{ visibility: string; status: string }>("select visibility, status from public.games where id = $1", [id]);
+    expect(row.rows[0]).toEqual({ visibility: "private", status: "draft" });
+    as("sara");
+    expect((await call(ADMIN, { action: "publish", key: privateDx })).status).toBe(401);
   });
 
   it("makes a public, name-free copy of a private hidden-role game", async () => {

@@ -30,6 +30,13 @@ export const dynamic = "force-dynamic";
 
 const STATUSES: GameRecordStatus[] = ["draft", "published", "archived"];
 
+/** What stops a game from being published; null when it does not exist. */
+async function publishIssues(id: string) {
+  const kind = await getGameKind(id);
+  if (!kind) return null;
+  return kind === "deduction" ? validateDxDoc((await getDxGame(id))!.doc) : validateGameDoc((await getGame(id))!.doc);
+}
+
 export async function POST(req: Request) {
   try {
     if (!isSameOriginRequest(req)) return fail("FORBIDDEN", 403);
@@ -139,12 +146,8 @@ export async function POST(req: Request) {
         const status = body.status as GameRecordStatus;
         if (!STATUSES.includes(status)) return fail("BAD_REQUEST");
         if (status === "published") {
-          const kind = await getGameKind(body.id);
-          if (!kind) return fail("NOT_FOUND", 404);
-          const issues =
-            kind === "deduction"
-              ? validateDxDoc((await getDxGame(body.id))!.doc)
-              : validateGameDoc((await getGame(body.id))!.doc);
+          const issues = await publishIssues(body.id);
+          if (!issues) return fail("NOT_FOUND", 404);
           if (issues.length > 0) return Response.json({ ok: false, error: "PUBLISH_BLOCKED", issues }, { status: 400 });
         }
         const res = await rpc<RpcResult>("fq_admin_set_game_status", { p_id: body.id, p_status: status });
@@ -224,6 +227,22 @@ export async function POST(req: Request) {
         if (!isBuiltinKey(key) && !isUuid(key)) return fail("NOT_FOUND", 404);
         if (body.visibility !== "public" && body.visibility !== "private") return fail("BAD_REQUEST");
         const res = await rpc<RpcResult>("fq_admin_set_visibility", { p_key: key, p_visibility: body.visibility });
+        if (!res.ok) return fail(res.error, 404);
+        return ok({});
+      }
+
+      // The dashboard's «نشر»: a game opens to every user in one step (a built-in only has its visibility).
+      case "publish": {
+        const key = String(body.key ?? "");
+        if (!isBuiltinKey(key)) {
+          if (!isUuid(key)) return fail("NOT_FOUND", 404);
+          const issues = await publishIssues(key);
+          if (!issues) return fail("NOT_FOUND", 404);
+          if (issues.length > 0) return Response.json({ ok: false, error: "PUBLISH_BLOCKED", issues }, { status: 400 });
+          const published = await rpc<RpcResult>("fq_admin_set_game_status", { p_id: key, p_status: "published" });
+          if (!published.ok) return fail(published.error, 404);
+        }
+        const res = await rpc<RpcResult>("fq_admin_set_visibility", { p_key: key, p_visibility: "public" });
         if (!res.ok) return fail(res.error, 404);
         return ok({});
       }
