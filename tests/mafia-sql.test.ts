@@ -34,8 +34,8 @@ const CONFIG = {
 };
 
 describe("mafia rooms (SQL)", () => {
-  it("is schema version 7", async () => {
-    expect(await call<number>("fq_schema_version", {})).toBe(7);
+  it("is schema version 8", async () => {
+    expect(await call<number>("fq_schema_version", {})).toBe(8);
   });
 
   it("only creates rooms of kind mafia", async () => {

@@ -51,9 +51,10 @@ function Controller({ creds }: { creds: PlayerCreds }) {
     if (fatalError === "DX_SESSION") router.replace(`/dx/play/${sessionId}`);
     if (fatalError === "MAFIA_SESSION") router.replace(`/mafia/play/${sessionId}`);
     if (fatalError === "INVENT_SESSION") router.replace(`/invent/play/${sessionId}`);
+    if (fatalError === "DRAW_SESSION") router.replace(`/draw/play/${sessionId}`);
   }, [fatalError, router, sessionId]);
 
-  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION" || fatalError === "INVENT_SESSION") {
+  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION" || fatalError === "INVENT_SESSION" || fatalError === "DRAW_SESSION") {
     return (
       <Shell>
         <div className="flex flex-1 items-center justify-center">

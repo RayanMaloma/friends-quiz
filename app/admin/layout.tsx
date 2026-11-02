@@ -7,7 +7,7 @@ import { currentUser } from "@/lib/server/auth/session";
 export const metadata: Metadata = { title: "لوحة التحكم" };
 
 /** Must match fq_schema_version() in the latest migration. */
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 async function schemaVersion(): Promise<number> {
   try {
@@ -31,7 +31,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           ? "قاعدة البيانات تحتاج تحديث لألعاب الأدوار السرّية: افتح Supabase ← SQL Editor وشغّل الملف supabase/migrations/20261018000000_deduction.sql"
           : version < 6
             ? `قاعدة البيانات تحتاج تحديث: افتح Supabase ← SQL Editor وشغّل ${version < 5 ? "20261028000000_mafia.sql ثم " : ""}20261029000000_invent.sql ثم 20261030000000_accounts.sql من supabase/migrations`
-            : "قاعدة البيانات تحتاج تحديث للحسابات: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261030000000_accounts.sql",
+            : version < 7
+              ? "قاعدة البيانات تحتاج تحديث للحسابات: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261030000000_accounts.sql ثم 20261102000000_draw.sql"
+              : "قاعدة البيانات تحتاج تحديث للعبة الرسم: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261102000000_draw.sql",
     });
   }
   if (isDevPassword()) {

@@ -4,15 +4,15 @@ import type { Accent } from "@/lib/types";
  * The game catalog, as the browser sees it.
  *
  * A *game definition* is shared: the built-in games' rules (Mafia, «اخترع
- * إجابتك»), or a game authored in the dashboard (`games` row). Only the super
+ * إجابتك», the drawing game), or a game authored in the dashboard (`games` row). Only the super
  * admin edits definitions or their visibility. A *game session* (room) is one
  * instance a signed-in user creates from a definition, with its own settings
  * (and, for «اخترع إجابتك», its own questions); it never changes the definition.
  */
 
-export type BuiltinKey = "mafia" | "invent" | "invent_ahaji";
+export type BuiltinKey = "mafia" | "invent" | "invent_ahaji" | "draw";
 export type Visibility = "public" | "private";
-export type CatalogKind = "mafia" | "invent" | "quiz" | "deduction";
+export type CatalogKind = "mafia" | "invent" | "draw" | "quiz" | "deduction";
 
 export interface CatalogEntry {
   /** A built-in key or a game id. */
@@ -44,6 +44,10 @@ export const BUILTINS: Record<BuiltinKey, Omit<CatalogEntry, "visibility">> = {
     key: "invent_ahaji", kind: "invent", builtin: true, title: "اخترع إجابتك · أحاجي", emoji: "💡", accent: "sun",
     status: "published", minPlayers: 3, maxPlayers: 16, questionCount: 25,
   },
+  draw: {
+    key: "draw", kind: "draw", builtin: true, title: "وزارة المقيمين للفنون والرسم", emoji: "🎨", accent: "mint",
+    status: "published", minPlayers: 3, maxPlayers: 16, questionCount: null,
+  },
 };
 
-export const isBuiltinKey = (v: unknown): v is BuiltinKey => v === "mafia" || v === "invent" || v === "invent_ahaji";
+export const isBuiltinKey = (v: unknown): v is BuiltinKey => v === "mafia" || v === "invent" || v === "invent_ahaji" || v === "draw";

@@ -169,11 +169,11 @@ describe("registration and login", () => {
 });
 
 describe("what a regular user may open", () => {
-  it("sees exactly the three public games, never a private or draft one", async () => {
+  it("sees exactly the four public games, never a private or draft one", async () => {
     as("sara");
     const list = await call(CATALOG, { action: "list" });
     const games = list.body.games as { key: string; title: string; visibility?: string }[];
-    expect(games.map((g) => g.title)).toEqual(["المافيا", "اخترع إجابتك", "المهرب السري"]);
+    expect(games.map((g) => g.title)).toEqual(["المافيا", "اخترع إجابتك", "وزارة المقيمين للفنون والرسم", "المهرب السري"]);
     expect(games.some((g) => "visibility" in g)).toBe(false);
     expect(list.body.privileged).toBe(false);
   });
