@@ -10,9 +10,9 @@ import type { Accent } from "@/lib/types";
  * (and, for «اخترع إجابتك», its own questions); it never changes the definition.
  */
 
-export type BuiltinKey = "mafia" | "invent" | "invent_ahaji" | "draw";
+export type BuiltinKey = "mafia" | "invent" | "invent_ahaji" | "draw" | "outage";
 export type Visibility = "public" | "private";
-export type CatalogKind = "mafia" | "invent" | "draw" | "quiz" | "deduction";
+export type CatalogKind = "mafia" | "invent" | "draw" | "outage" | "quiz" | "deduction";
 
 export interface CatalogEntry {
   /** A built-in key or a game id. */
@@ -48,6 +48,10 @@ export const BUILTINS: Record<BuiltinKey, Omit<CatalogEntry, "visibility">> = {
     key: "draw", kind: "draw", builtin: true, title: "وزارة المقيمين للفنون والرسم", emoji: "🎨", accent: "mint",
     status: "published", minPlayers: 3, maxPlayers: 16, questionCount: null,
   },
+  outage: {
+    key: "outage", kind: "outage", builtin: true, title: "انقطاع الاتصال", emoji: "🛰", accent: "sky",
+    status: "published", minPlayers: 3, maxPlayers: 8, questionCount: null,
+  },
 };
 
-export const isBuiltinKey = (v: unknown): v is BuiltinKey => v === "mafia" || v === "invent" || v === "invent_ahaji" || v === "draw";
+export const isBuiltinKey = (v: unknown): v is BuiltinKey => v === "mafia" || v === "invent" || v === "invent_ahaji" || v === "draw" || v === "outage";

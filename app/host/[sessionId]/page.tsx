@@ -145,9 +145,10 @@ function HostGame({ creds }: { creds: HostCreds }) {
     if (fatalError === "MAFIA_SESSION") window.location.replace(`/mafia/host/${sessionId}`);
     if (fatalError === "INVENT_SESSION") window.location.replace(`/invent/host/${sessionId}`);
     if (fatalError === "DRAW_SESSION") window.location.replace(`/draw/host/${sessionId}`);
+    if (fatalError === "OUTAGE_SESSION") window.location.replace(`/outage/host/${sessionId}`);
   }, [fatalError, sessionId]);
 
-  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION" || fatalError === "INVENT_SESSION" || fatalError === "DRAW_SESSION") return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
+  if (fatalError === "DX_SESSION" || fatalError === "MAFIA_SESSION" || fatalError === "INVENT_SESSION" || fatalError === "DRAW_SESSION" || fatalError === "OUTAGE_SESSION") return <FullScreenCenter><Spinner className="size-10 text-ink" /></FullScreenCenter>;
   if (fatalError) {
     return (
       <FullScreenCenter>

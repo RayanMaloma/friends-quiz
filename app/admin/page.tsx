@@ -106,7 +106,7 @@ export default function AdminGamesPage() {
   async function playBuiltin(key: string) {
     setBusy(key);
     setError(null);
-    const kind = key === "mafia" ? "mafia" : key === "draw" ? "draw" : "invent";
+    const kind = key === "mafia" ? "mafia" : key === "draw" ? "draw" : key === "outage" ? "outage" : "invent";
     const res = await api<{ sessionId: string; code: string; hostToken: string }>(`/api/${kind}`, {
       action: "create",
       ...(key === "invent_ahaji" ? { questionSet: "ahaji" } : {}),

@@ -5,7 +5,7 @@ export type ApiResult<T> =
 const TIMEOUT_MS = 10000;
 
 export async function api<T = Record<string, unknown>>(
-  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia" | "/api/invent" | "/api/draw" | "/api/auth" | "/api/catalog",
+  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia" | "/api/invent" | "/api/draw" | "/api/outage" | "/api/auth" | "/api/catalog",
   body: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
   const controller = new AbortController();
@@ -34,7 +34,7 @@ export async function api<T = Record<string, unknown>>(
 }
 
 /** Errors that mean "this device can't continue in this game" (vs. transient). */
-export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION", "MAFIA_SESSION", "INVENT_SESSION", "DRAW_SESSION"]);
+export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION", "MAFIA_SESSION", "INVENT_SESSION", "DRAW_SESSION", "OUTAGE_SESSION"]);
 
 const MESSAGES: Record<string, string> = {
   GAME_NOT_FOUND: "رمز اللعبة غير صحيح",
@@ -103,6 +103,7 @@ const MESSAGES: Record<string, string> = {
   DR_EMPTY_GUESS: "اكتب تخمينك",
   DR_LIMIT: "خلصت محاولاتك هالدور",
   DR_BAD_DRAWING: "اللوحة ما وصلت، جرّب مرة ثانية",
+  NOT_SEATED: "لست ضمن طاقم هذه المهمة",
 };
 
 /** Like errorMessage, but prefers the server's own explanation (game rule errors). */

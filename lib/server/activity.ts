@@ -87,6 +87,23 @@ function drawDetail(match: Obj): Pick<SessionDetail, "settings" | "questions" | 
   };
 }
 
+const OUTAGE_LEVELS: Record<string, string> = { easy: "سهل", medium: "متوسط", hard: "صعب" };
+
+function outageDetail(match: Obj): Pick<SessionDetail, "settings" | "questions" | "result"> {
+  const settings = obj(match.settings);
+  const game = obj(match.game);
+  const score = obj(game.score);
+  let result: string | null = null;
+  if (game.outcome === "success") result = `تم إنقاذ المنشأة: ${num(score.score) ?? 0} نقطة (${String(score.grade ?? "—")})`;
+  else if (game.outcome === "failed") result = `فشلت المهمة: ${String(game.reason ?? "—")}`;
+  else if (game.outcome === "aborted") result = "أُنهيت مبكرًا";
+  return {
+    settings: [["الصعوبة", OUTAGE_LEVELS[String(game.difficulty ?? settings.difficulty)] ?? "—"]],
+    questions: null,
+    result,
+  };
+}
+
 function mafiaDetail(match: Obj): Pick<SessionDetail, "settings" | "questions" | "result"> {
   const winner = obj(match.winner);
   const players = Array.isArray(match.players) ? match.players.length : null;
@@ -136,6 +153,7 @@ export function summarizeSession(raw: Obj): SessionDetail {
   const specific =
     kind === "invent" ? inventDetail(config, match)
     : kind === "draw" ? drawDetail(match)
+    : kind === "outage" ? outageDetail(match)
     : kind === "mafia" ? mafiaDetail(match)
     : kind === "deduction" ? dxDetail(config, match)
     : quizDetail(config, Number(s.total_questions ?? 0));
