@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 import { migratedDb } from "./helpers/db";
 import { CASES } from "@/lib/court/cases";
@@ -13,7 +13,6 @@ import type { CourtDoc } from "@/lib/court/engine";
 // and that the other games' endpoints hand court rooms over.
 
 let pg: PGlite;
-let pings = 0;
 
 vi.mock("@/lib/server/db", () => ({
   isSupabaseConfigured: false,
@@ -30,11 +29,7 @@ vi.mock("@/lib/server/db", () => ({
     return res.rows[0].result;
   },
 }));
-vi.mock("@/lib/server/broadcast", () => ({
-  notifyGame: async () => {
-    pings++;
-  },
-}));
+vi.mock("@/lib/server/broadcast", () => ({ notifyGame: async () => {} }));
 vi.mock("@/lib/server/access", () => ({
   authorizeCreate: async () => ({ actor: { user: null, privileged: true } }),
   claimSession: async () => {},
@@ -46,9 +41,6 @@ const { POST: HOST } = await import("@/app/api/host/route");
 
 beforeAll(async () => {
   pg = await migratedDb();
-});
-beforeEach(() => {
-  pings = 0;
 });
 
 type Body<V> = { ok: boolean; error?: string; message?: string; view?: V; sessionId?: string; code?: string; hostToken?: string; playerToken?: string; kind?: string };

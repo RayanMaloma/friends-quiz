@@ -116,13 +116,18 @@ export function TimerBar({ ms, timer, paused = false }: { ms: number | null; tim
   return (
     <span className={`ct-timer ${ms <= 5000 && !paused ? "is-urgent" : ""} ${paused ? "is-paused" : ""}`} role="timer" aria-label={`باقي ${secs} ثانية`}>
       <span className="ct-timer-num" dir="ltr">
-        {paused ? "⏸" : secs}
+        {paused ? <PauseIcon /> : secs}
       </span>
       <span className="ct-timer-rail" aria-hidden>
         <span style={{ transform: `scaleX(${frac})` }} />
       </span>
     </span>
   );
+}
+
+/** Two bars (the ⏸ glyph is missing from many TV fonts). */
+export function PauseIcon({ big = false }: { big?: boolean }) {
+  return <span className={`ct-pause-icon ${big ? "is-big" : ""}`} aria-label="متوقف" role="img" />;
 }
 
 /* ------------------------------------------------------------------ */

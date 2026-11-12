@@ -14,6 +14,7 @@ import { InventSound, readSoundSettings, writeSoundSettings, type SoundSettings 
 import {
   Brand,
   KIND,
+  PauseIcon,
   PhaseSteps,
   ROLE,
   RoleTag,
@@ -599,9 +600,8 @@ function PauseCurtain({ game, view, receivedAt, move }: { game: CourtPublicGame;
           </>
         ) : (
           <>
-            <span className="ct-curtain-icon" aria-hidden>
-              ⏸
-            </span>
+            <PauseIcon big />
+            <p className="ct-curtain-title">متوقّف</p>
             <button type="button" className="ct-btn is-primary is-lg" onClick={() => void move({ type: "resume" })}>
               استئناف
             </button>

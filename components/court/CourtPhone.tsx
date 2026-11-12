@@ -139,16 +139,16 @@ function Hearing({ view, game, receivedAt, act }: { view: CourtGuestView; game: 
       </section>
 
       <section className="ct-now">
-        <span className="ct-now-label">{phaseLabel(game.phase)}</span>
+        {myTurn || questioned ? (
+          <span className={`ct-your-turn ct-rise ${questioned ? "is-questioned" : ""}`}>
+            <span aria-hidden>🎙️</span>
+            {questioned ? "يستجوبونك" : "دورك"}
+          </span>
+        ) : (
+          <span className="ct-now-label">{phaseLabel(game.phase)}</span>
+        )}
         <TimerBar ms={ms} timer={game.timer} paused={!!game.paused} />
       </section>
-
-      {(myTurn || questioned) && (
-        <p className={`ct-your-turn ct-rise ${questioned ? "is-questioned" : ""}`}>
-          <span aria-hidden>🎙️</span>
-          {questioned ? "يستجوبونك" : "دورك"}
-        </p>
-      )}
 
       {game.phase === "vote" ? (
         role === "juror" ? (
@@ -354,15 +354,26 @@ function MyResult({ view, game }: { view: CourtGuestView; game: CourtPublicGame 
 function MyFinal({ view, game }: { view: CourtGuestView; game: CourtPublicGame }) {
   const me = view.me.playerId;
   const won = game.winners.includes(me);
+  const mine = game.standings.find((s) => s.playerId === me);
+  const top = game.standings.slice(0, 5);
+  const rows = mine && !top.includes(mine) ? [...top.slice(0, 4), mine] : top;
   return (
     <main className="ct-phone-main">
       <div className="ct-center-col">
         <span className="ct-big-icon" aria-hidden>
           {won ? "🏆" : "⚖️"}
         </span>
-        {won && <p className="ct-lead">فزت!</p>}
+        {won ? (
+          <p className="ct-lead">فزت!</p>
+        ) : (
+          mine && (
+            <p className="ct-rank-line">
+              <span className="ct-mute">#{mine.rank}</span> <b dir="ltr">{mine.score}</b>
+            </p>
+          )
+        )}
       </div>
-      <Standings rows={game.standings} meId={me} showGain={false} />
+      <Standings rows={rows} meId={me} showGain={false} />
     </main>
   );
 }
