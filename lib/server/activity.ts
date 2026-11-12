@@ -87,6 +87,20 @@ function drawDetail(match: Obj): Pick<SessionDetail, "settings" | "questions" | 
   };
 }
 
+function courtDetail(match: Obj): Pick<SessionDetail, "settings" | "questions" | "result"> {
+  const settings = obj(match.settings);
+  const game = obj(match.game);
+  let result: string | null = null;
+  if (game.phase === "final") {
+    const players = Array.isArray(game.players) ? (game.players as Obj[]) : [];
+    const scores = obj(game.scores);
+    const top = Math.max(0, ...players.map((p) => Number(scores[String(p.id)] ?? 0)));
+    const winners = top > 0 ? players.filter((p) => Number(scores[String(p.id)] ?? 0) === top).map((p) => String(p.name)) : [];
+    result = game.endedEarly ? "أُنهيت مبكرًا" : winners.length ? `الفائز: ${winners.join("، ")} (${top})` : "بدون فائز";
+  }
+  return { settings: [["القضايا", String(num(settings.cases) ?? "—")]], questions: null, result };
+}
+
 function mafiaDetail(match: Obj): Pick<SessionDetail, "settings" | "questions" | "result"> {
   const winner = obj(match.winner);
   const players = Array.isArray(match.players) ? match.players.length : null;
@@ -136,6 +150,7 @@ export function summarizeSession(raw: Obj): SessionDetail {
   const specific =
     kind === "invent" ? inventDetail(config, match)
     : kind === "draw" ? drawDetail(match)
+    : kind === "court" ? courtDetail(match)
     : kind === "mafia" ? mafiaDetail(match)
     : kind === "deduction" ? dxDetail(config, match)
     : quizDetail(config, Number(s.total_questions ?? 0));

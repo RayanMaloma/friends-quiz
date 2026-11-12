@@ -116,6 +116,32 @@ vote counts and points (**100 per vote received**, nothing else) → leaderboard
   view (`lib/invent/views.ts`): no answer text before voting, no authors or vote counts before the reveal, never who voted for whom.
 - Migration: `supabase/migrations/20261029000000_invent.sql` (schema version 6).
 
+## «المحكمة» (built-in)
+
+A courtroom party game for 5–12 players. Each case: one **accused** (knows the truth), one **lawyer**, one **prosecutor**,
+everyone else a **juror**; the server is the judge. Five fixed, reviewed cases (`lib/court/cases.ts`, server-only), picked at
+random without repeats (a rematch prefers new ones); the host sets how many (1–5).
+
+Phases: announce (30s) → openings (prosecutor 60s, lawyer 60s) → evidence (105s: the prosecutor presents up to 3 exhibits
+from the phone; the lawyer has **one objection**, which stops the evidence clock for the prosecutor's 15s, then shows the
+case's predefined ruling: upheld with a note, or overruled) → cross-examination (prosecutor 60s, lawyer 30s) → closings
+(30s + 30s) → secret jury vote (20s, ends early when every juror voted; a tie or no votes = not guilty) → verdict (truth,
+explanation, exhibit classes: صحيح / مضلّل / غير حاسم, points) → standings → next case → final winner(s).
+
+Points: accused **+200** when the verdict misses the truth, lawyer **+150** on «not guilty», prosecutor **+150** on «guilty»,
+each juror **+100** for voting the truth. Key roles rotate (fewest key roles first, then fewest of that role, never the same
+accused twice in a row).
+
+- Same architecture as the other built-ins: engine `lib/court/engine.ts` on the server, `/api/court` checks every move against
+  the sender's role, phase and case, saves with the `match_version` lock (simultaneous votes retry), and each device gets only
+  its own view (`lib/court/views.ts`): the TV never sees a secret, an unpresented exhibit, a class or a ballot before the verdict.
+- **Presence**: every phone request stamps `fq_player_presence`. A key role unseen for 20s (or whose seat was freed) pauses the
+  hearing; their return resumes it. After a 15s grace the TV offers: go on without them, hand the role to a juror (the replaced
+  player sits the case out), or void the case. The host can also pause/resume, skip a phase, free a seat (the player rejoins by
+  typing the same name, keeping role and points) or end the session from ⚙.
+- Phones: secrets are **hold to reveal** (hidden again on release or when the app goes to the background).
+- Migration: `supabase/migrations/20261111000000_court.sql` (schema version 9).
+
 ## Pages
 
 | URL | Who | What |
@@ -135,6 +161,8 @@ vote counts and points (**100 per vote received**, nothing else) → leaderboard
 | `/dx/play/[id]` | players | Hidden-role game: the private phone screen |
 | `/invent/host/[id]` | host screen | «اخترع إجابتك»: lobby, rounds, host panel, results |
 | `/invent/join`, `/invent/play/[id]` | players | «اخترع إجابتك»: join, answer, vote, standings |
+| `/court/host/[id]` | TV | «المحكمة»: lobby, hearing, verdict, standings, host controls |
+| `/court/join`, `/court/play/[id]` | players | «المحكمة»: join, role and secret, exhibits / objection / ballot, points |
 
 ## How it works
 
@@ -184,7 +212,7 @@ npm run dev
 ### Supabase
 
 1. **SQL Editor** → run each file in `supabase/migrations/` **in order** (all are safe to re-run):
-   `20261004000000_init.sql`, `20261004010000_open_players.sql`, **`20261009000000_platform.sql`**, **`20261018000000_deduction.sql`** (hidden-role games), `20261028000000_mafia.sql`, **`20261029000000_invent.sql`** (اخترع إجابتك), **`20261030000000_accounts.sql`** (accounts, catalog, activity).
+   `20261004000000_init.sql`, `20261004010000_open_players.sql`, **`20261009000000_platform.sql`**, **`20261018000000_deduction.sql`** (hidden-role games), `20261028000000_mafia.sql`, **`20261029000000_invent.sql`** (اخترع إجابتك), **`20261030000000_accounts.sql`** (accounts, catalog, activity), `20261102000000_draw.sql`, **`20261111000000_court.sql`** (المحكمة).
    Already ran the first two? Just run the third. It replaces the old session tables (old rooms are
    dropped). With the Supabase CLI: `supabase db push`.
    The dashboard shows a warning until this migration is applied.
