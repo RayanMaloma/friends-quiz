@@ -547,6 +547,7 @@ export type Command =
 export type CommandResult = null | string;
 
 export const SYS_NAMES: Record<SysId, string> = { cooling: "التبريد", life: "الأكسجين", comms: "الاتصالات", security: "الأمان" };
+const SYS_FOR: Record<SysId, string> = { cooling: "للتبريد", life: "للأكسجين", comms: "للاتصالات", security: "للأمان" };
 export const DEVICE_NAMES: Record<DeviceId, string> = {
   main: "المولد الرئيسي",
   backup: "المولد الاحتياطي",
@@ -639,7 +640,7 @@ function run(s: Sim, c: Command): CommandResult {
       if (c.sys === "comms" && s.faults.relay) return "المرحّل معطل";
       if (c.sys === "security" && s.faults.controller) return "وحدة التحكم معطلة";
       if (s.job && isolationIssueAfter(s, c.sys)) return "صيانة جارية";
-      if (p.alloc[c.sys] <= 0) return `لا طاقة مخصصة ل${SYS_NAMES[c.sys]}`;
+      if (p.alloc[c.sys] <= 0) return `لا طاقة مخصصة ${SYS_FOR[c.sys]}`;
       p.breakers[c.sys] = true;
       log(s, `تشغيل قاطع ${SYS_NAMES[c.sys]}`);
       return null;

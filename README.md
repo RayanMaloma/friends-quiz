@@ -116,6 +116,34 @@ vote counts and points (**100 per vote received**, nothing else) → leaderboard
   view (`lib/invent/views.ts`): no answer text before voting, no authors or vote counts before the reveal, never who voted for whom.
 - Migration: `supabase/migrations/20261029000000_invent.sql` (schema version 6).
 
+## «انقطاع الاتصال» (built-in, 3–8 players)
+
+A cooperative crisis on **المحطة 07**: the TV is the shared command center, each phone is one engineer's console, and
+nobody holds all the tools or all the information — codes, sensor readings and diagnoses have to be said out loud.
+
+- **Simulation** (`lib/outage/sim.ts`): a deterministic station that moves in one-second server ticks (never in
+  wall-clock deltas, so poll rate and browser speed can't change the outcome). Generators → supply → allocations ×
+  breakers → each system; pump power × its electricity × coolant × valve split → reactor cooling; backup generator heat
+  ← its cooling loop; power + filter + scrubber → O₂, breaches (doors/vents) → O₂ loss; security power + controller +
+  lockdown → doors; comms power + relay + tuning → messages; repairs need their device isolated for their whole duration.
+- **Faults** (`lib/outage/missions.ts`): reactor overheat (always first, the 15-step chain), O₂ drop, main generator
+  failure, hull breach, comms failure, security lockdown, dual fault. Each is `setup` + `stable` (+ optional failure);
+  a fault completes only after its stable state holds for a few seconds. Add a fault by adding an entry.
+- **Panels & roles** (`lib/outage/roles.ts`): 8 panels → 6 specialties; 3–5 players merge them, 7–8 split electrical and
+  security into sub-panels. The server accepts a command only from the panel's current holder. A player silent for
+  45 s (or released by the host) has their panels redistributed (keeping every fault two-player); they get them back on return.
+- **Levels**: easy 3 faults / 12 min, medium 5 / 10 min (one overlap, one decoy message, enciphered codes, 2 short
+  blackouts), hard 7 / 8 min (overlaps, decoys, drifting sensor, split code, frequent blackouts). Blackouts are a social
+  rule only (that player must stay silent); their device keeps working.
+- **Score**: 1000 per fault, 10 per second left, −150 per operational error (wrong code, wrong repair, burnt generator,
+  opening a breached section…), +500 with no system collapse, never below 0. Grades are shares of each level's maximum:
+  S ≥ 68 %, A ≥ 58 %, B ≥ 48 %, else C; failure is F.
+- `/api/outage` (same optimistic-lock model as the other games), views in `lib/outage/views.ts` (the TV never sees a
+  code, key, signal, diagnosis or the backup generator's heat). Migration `20261111000000_outage.sql` (schema v9).
+- Tests: `tests/outage.test.ts` (couplings, the reactor chain, codes, overlaps, decisions, blackouts, time, scoring,
+  determinism, a scripted crew winning easy/medium with 3/6/8 players) and `tests/outage-route.test.ts` (end to end on the
+  real migrations).
+
 ## Pages
 
 | URL | Who | What |
@@ -135,6 +163,8 @@ vote counts and points (**100 per vote received**, nothing else) → leaderboard
 | `/dx/play/[id]` | players | Hidden-role game: the private phone screen |
 | `/invent/host/[id]` | host screen | «اخترع إجابتك»: lobby, rounds, host panel, results |
 | `/invent/join`, `/invent/play/[id]` | players | «اخترع إجابتك»: join, answer, vote, standings |
+| `/outage/host/[id]` | TV | «انقطاع الاتصال»: lobby + QR + difficulty, command center, results |
+| `/outage/join`, `/outage/play/[id]` | players | «انقطاع الاتصال»: join, your control panels |
 
 ## How it works
 

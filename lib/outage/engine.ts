@@ -242,8 +242,9 @@ const SIGS = ["K7", "R2", "M4", "T9", "Z3", "H6", "N8", "Q5"];
 
 export function applySettings(doc: OutageDoc, patch: Partial<OutageSettings>): EngineResult {
   if (doc.game) return { doc, error: "اللعبة بدأت" };
-  if (patch.difficulty !== undefined && !isDifficulty(patch.difficulty)) return { doc, error: "BAD_REQUEST" };
-  return { doc: { ...doc, settings: { ...doc.settings, ...patch } } };
+  if (patch.difficulty === undefined) return { doc };
+  if (!isDifficulty(patch.difficulty)) return { doc, error: "BAD_REQUEST" };
+  return { doc: { ...doc, settings: { ...doc.settings, difficulty: patch.difficulty } } };
 }
 
 /** Starts a match for the seated players (3–8). `seed` makes everything reproducible. */

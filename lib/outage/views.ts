@@ -384,16 +384,13 @@ function station(g: OutageGame): TvGame["station"] {
   };
 }
 
-function alertOf(g: OutageGame, st: TvGame["station"], faults: FaultCard[]): TvGame["alert"] {
+/** A station-wide emergency only: fault titles already have their own cards (no repetition). */
+function alertOf(g: OutageGame): TvGame["alert"] {
   const s = g.sim;
   if (s.reactor.temp >= REACTOR_CRITICAL) return { text: "المفاعل في المنطقة الحرجة", level: "danger" };
   if (s.life.o2 < O2_WARN) return { text: "الأكسجين ينفد", level: "danger" };
   if (supply(s) <= 0) return { text: "انقطاع كامل للطاقة", level: "danger" };
-  if (st.reactor.level !== "ok" && reactorTrend(s, g) > 0) return { text: "ارتفاع حرارة المفاعل", level: "warn" };
-  if (st.security.state === "breach") return { text: "تسريب هواء", level: "warn" };
-  if (st.security.state === "lockdown") return { text: "إغلاق طارئ", level: "warn" };
-  const top = faults[0];
-  return top ? { text: top.title, level: "warn" } : null;
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -574,7 +571,7 @@ export function buildOutageHostView(snapshot: Snapshot, doc: OutageDoc): OutageH
   if (g) {
     const pub = publicGame(g, rosterOf(snapshot), now);
     const st = station(g);
-    game = { ...pub, station: st, alert: g.outcome ? null : alertOf(g, st, pub.faults) };
+    game = { ...pub, station: st, alert: g.outcome ? null : alertOf(g) };
   }
   return { ...base(snapshot, doc), role: "host", game };
 }
