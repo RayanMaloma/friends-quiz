@@ -53,6 +53,7 @@ export async function POST(req: Request) {
       if (snapshot.session.kind === "mafia") return fail("MAFIA_SESSION", 409);
       if (snapshot.session.kind === "invent") return fail("INVENT_SESSION", 409);
       if (snapshot.session.kind === "draw") return fail("DRAW_SESSION", 409);
+      if (snapshot.session.kind === "court") return fail("COURT_SESSION", 409);
       return ok({ view: buildHostView(snapshot) });
     };
 

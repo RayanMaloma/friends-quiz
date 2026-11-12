@@ -18,7 +18,7 @@ export default function JoinPage() {
 
 type LookupResponse = {
   sessionId: string;
-  kind: "quiz" | "deduction" | "mafia" | "invent" | "draw";
+  kind: "quiz" | "deduction" | "mafia" | "invent" | "draw" | "court";
   title: string;
   emoji: string;
   accent: Accent;
@@ -73,6 +73,10 @@ function Join() {
       }
       if (res.kind === "draw") {
         router.replace(`/draw/join?code=${value}`);
+        return;
+      }
+      if (res.kind === "court") {
+        router.replace(`/court/join?code=${value}`);
         return;
       }
       // Already joined this game on this device? Go straight back in.
@@ -131,6 +135,9 @@ function Join() {
       } else if (!res.ok && res.error === "DRAW_SESSION") {
         void api<{ view: { status: string } }>("/api/draw", { action: "state", as: "guest", sessionId: last.sessionId, playerToken: last.playerToken })
           .then((dr) => { if (dr.ok && dr.view.status !== "FINISHED") setResume(last); });
+      } else if (!res.ok && res.error === "COURT_SESSION") {
+        void api<{ view: { status: string } }>("/api/court", { action: "state", as: "guest", sessionId: last.sessionId, playerToken: last.playerToken })
+          .then((ct) => { if (ct.ok && ct.view.status !== "FINISHED") setResume(last); });
       }
     });
   }, [codeParam, doLookup]);
