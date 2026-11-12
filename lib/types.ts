@@ -168,9 +168,9 @@ export interface Snapshot {
     game_id: string | null;
     config: SessionConfig;
     created_at: string;
-    /** "quiz" (questions), "deduction" (hidden roles), "mafia", "invent" (اخترع إجابتك) "draw" (the drawing game) or "court" (المحكمة). Missing before migration 4. */
-    kind?: "quiz" | "deduction" | "mafia" | "invent" | "draw" | "court";
-    /** Deduction / Mafia / Invent / Draw / Court only: the live match state (server only — contains every secret). */
+    /** "quiz" (questions), "deduction" (hidden roles), "mafia", "invent" (اخترع إجابتك), "draw" (the drawing game), "court" (المحكمة) or "outage" (انقطاع الاتصال). Missing before migration 4. */
+    kind?: "quiz" | "deduction" | "mafia" | "invent" | "draw" | "court" | "outage";
+    /** Deduction / Mafia / Invent / Draw / Court / Outage only: the live match state (server only — contains every secret). */
     match?: unknown;
     match_version?: number;
   };

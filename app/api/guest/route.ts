@@ -98,6 +98,7 @@ export async function POST(req: Request) {
       if (snapshot.session.kind === "invent") return fail("INVENT_SESSION", 409);
       if (snapshot.session.kind === "draw") return fail("DRAW_SESSION", 409);
       if (snapshot.session.kind === "court") return fail("COURT_SESSION", 409);
+      if (snapshot.session.kind === "outage") return fail("OUTAGE_SESSION", 409);
       const player = snapshot.players.find((p) => p.token_hash === tokenHash);
       const view = player ? buildGuestView(snapshot, player.id) : null;
       if (!view) return fail("NOT_A_PLAYER", 401);

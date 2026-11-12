@@ -35,15 +35,15 @@ interface MySession {
   player_count: number;
 }
 
-const HOST_PATH: Record<CatalogKind, string> = { quiz: "/host", deduction: "/dx/host", mafia: "/mafia/host", invent: "/invent/host", draw: "/draw/host", court: "/court/host" };
+const HOST_PATH: Record<CatalogKind, string> = { quiz: "/host", deduction: "/dx/host", mafia: "/mafia/host", invent: "/invent/host", draw: "/draw/host", court: "/court/host", outage: "/outage/host" };
 
 /** Still-running room this browser holds the host token of (each kind answers on its own endpoint). */
 async function localRoom(creds: { sessionId: string; code: string; hostToken: string }): Promise<MySession | null> {
   const quiz = await api<{ view: { status: string } }>("/api/host", { action: "state", ...creds });
   if (quiz.ok) return quiz.view.status === "FINISHED" ? null : { id: creds.sessionId, code: creds.code, kind: "quiz", title: null, emoji: null, player_count: 0 };
-  const kind = ({ DX_SESSION: "deduction", MAFIA_SESSION: "mafia", INVENT_SESSION: "invent", DRAW_SESSION: "draw", COURT_SESSION: "court" } as const)[quiz.error as "DX_SESSION"];
+  const kind = ({ DX_SESSION: "deduction", MAFIA_SESSION: "mafia", INVENT_SESSION: "invent", DRAW_SESSION: "draw", COURT_SESSION: "court", OUTAGE_SESSION: "outage" } as const)[quiz.error as "DX_SESSION"];
   if (!kind) return null;
-  const endpoint = kind === "deduction" ? "/api/dx" : kind === "mafia" ? "/api/mafia" : kind === "draw" ? "/api/draw" : kind === "court" ? "/api/court" : "/api/invent";
+  const endpoint = kind === "deduction" ? "/api/dx" : kind === "mafia" ? "/api/mafia" : kind === "draw" ? "/api/draw" : kind === "court" ? "/api/court" : kind === "outage" ? "/api/outage" : "/api/invent";
   const res = await api<{ view: { status: string } }>(endpoint, { action: "state", as: "host", ...creds });
   return res.ok && res.view.status !== "FINISHED" ? { id: creds.sessionId, code: creds.code, kind, title: null, emoji: null, player_count: 0 } : null;
 }
@@ -95,8 +95,8 @@ export default function GamesPage() {
     if (creating) return;
     setCreating(game.key);
     setError(null);
-    const endpoint = game.kind === "mafia" ? "/api/mafia" : game.kind === "invent" ? "/api/invent" : game.kind === "draw" ? "/api/draw" : game.kind === "court" ? "/api/court" : game.kind === "deduction" ? "/api/dx" : "/api/host";
-    const body = game.kind === "mafia" || game.kind === "draw" || game.kind === "court" ? {} : game.key === "invent_ahaji" ? { questionSet: "ahaji" } : game.kind === "invent" ? {} : { gameId: game.key };
+    const endpoint = game.kind === "mafia" ? "/api/mafia" : game.kind === "invent" ? "/api/invent" : game.kind === "draw" ? "/api/draw" : game.kind === "court" ? "/api/court" : game.kind === "outage" ? "/api/outage" : game.kind === "deduction" ? "/api/dx" : "/api/host";
+    const body = game.kind === "mafia" || game.kind === "draw" || game.kind === "court" || game.kind === "outage" ? {} : game.key === "invent_ahaji" ? { questionSet: "ahaji" } : game.kind === "invent" ? {} : { gameId: game.key };
     const res = await api<{ sessionId: string; code: string; hostToken: string }>(endpoint, { action: "create", ...body });
     if (!res.ok) {
       setError(errorMessage(res.error));
@@ -195,6 +195,7 @@ const COVERS: Partial<Record<string, { bg: string; fg: string; accent: string }>
   invent_ahaji: { bg: "radial-gradient(120% 140% at 85% 0%, #3a2a0c 0%, #17181d 50%, #0c0d10 100%)", fg: "#f3ead8", accent: "#f5c242" },
   draw: { bg: "linear-gradient(160deg, #0f5a43 0%, #0a3d2e 55%, #072a20 100%)", fg: "#f5f2ea", accent: "#c9a75a" },
   court: { bg: "radial-gradient(120% 140% at 85% 0%, #7a2330 0%, #3a1c14 50%, #1f100b 100%)", fg: "#f6ecd9", accent: "#e0b552" },
+  outage: { bg: "radial-gradient(120% 140% at 85% 0%, #123a5c 0%, #0b1424 55%, #05080f 100%)", fg: "#e6f1ff", accent: "#ffb020" },
 };
 
 function GameCard({ game: g, busy, disabled, onStart }: { game: Game; busy: boolean; disabled: boolean; onStart: () => void }) {

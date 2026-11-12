@@ -174,7 +174,7 @@ describe("what a regular user may open", () => {
     as("sara");
     const list = await call(CATALOG, { action: "list" });
     const games = list.body.games as { key: string; title: string; visibility?: string }[];
-    expect(games.map((g) => g.title)).toEqual(["المافيا", "اخترع إجابتك", "وزارة المقيمين للفنون والرسم", "المحكمة", "المهرب السري"]);
+    expect(games.map((g) => g.title)).toEqual(["المافيا", "اخترع إجابتك", "وزارة المقيمين للفنون والرسم", "المحكمة", "انقطاع الاتصال", "المهرب السري"]);
     expect(games.some((g) => "visibility" in g)).toBe(false);
     expect(list.body.privileged).toBe(false);
   });

@@ -5,7 +5,7 @@ export type ApiResult<T> =
 const TIMEOUT_MS = 10000;
 
 export async function api<T = Record<string, unknown>>(
-  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia" | "/api/invent" | "/api/draw" | "/api/court" | "/api/auth" | "/api/catalog",
+  endpoint: "/api/host" | "/api/guest" | "/api/admin" | "/api/dx" | "/api/mafia" | "/api/invent" | "/api/draw" | "/api/court" | "/api/outage" | "/api/auth" | "/api/catalog",
   body: Record<string, unknown>,
 ): Promise<ApiResult<T>> {
   const controller = new AbortController();
@@ -34,7 +34,7 @@ export async function api<T = Record<string, unknown>>(
 }
 
 /** Errors that mean "this device can't continue in this game" (vs. transient). */
-export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION", "MAFIA_SESSION", "INVENT_SESSION", "DRAW_SESSION", "COURT_SESSION"]);
+export const FATAL_ERRORS = new Set(["FORBIDDEN", "NOT_A_PLAYER", "GAME_NOT_FOUND", "DX_SESSION", "MAFIA_SESSION", "INVENT_SESSION", "DRAW_SESSION", "COURT_SESSION", "OUTAGE_SESSION"]);
 
 const MESSAGES: Record<string, string> = {
   GAME_NOT_FOUND: "رمز اللعبة غير صحيح",
@@ -113,6 +113,7 @@ const MESSAGES: Record<string, string> = {
   CT_VOTED: "صوّتت خلاص",
   CT_PAUSED: "الجلسة موقّفة",
   CT_NO_JUROR: "ما فيه محلفين كفاية للاستبدال",
+  NOT_SEATED: "لست ضمن طاقم هذه المهمة",
 };
 
 /** Like errorMessage, but prefers the server's own explanation (game rule errors). */

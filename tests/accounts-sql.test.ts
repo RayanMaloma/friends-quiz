@@ -81,8 +81,8 @@ beforeAll(async () => {
 });
 
 describe("accounts and roles", () => {
-  it("is schema version 9", async () => {
-    expect(await call<number>("fq_schema_version", {})).toBe(9);
+  it("is schema version 10", async () => {
+    expect(await call<number>("fq_schema_version", {})).toBe(10);
   });
 
   it("every new account gets the 'user' role and one registration event", async () => {
@@ -189,16 +189,16 @@ describe("row level security (a client holding a user JWT)", () => {
     await save("public", "draft");
     expect((await asUser<{ id: string }>(alice, "select id from public.games")).map((g) => g.id)).toEqual([pub]);
     expect((await asUser(admin, "select id from public.games")).length).toBeGreaterThanOrEqual(3);
-    expect((await asUser<{ key: string }>(alice, "select key from public.fq_catalog order by key")).map((c) => c.key)).toEqual(["court", "draw", "invent", "mafia"]);
+    expect((await asUser<{ key: string }>(alice, "select key from public.fq_catalog order by key")).map((c) => c.key)).toEqual(["court", "draw", "invent", "mafia", "outage"]);
     expect(await asUser(alice, "select id from public.fq_activity")).toEqual([]);
     expect((await asUser(admin, "select id from public.fq_activity")).length).toBeGreaterThan(0);
   });
 });
 
 describe("catalog", () => {
-  it("defaults: Mafia, «اخترع إجابتك», the drawing game and the court public, the Ahaji questions private; the admin can change it", async () => {
+  it("defaults: Mafia, «اخترع إجابتك», the drawing game, the court and «انقطاع الاتصال» public, the Ahaji questions private; the admin can change it", async () => {
     let cat = await call<R & { builtin: Record<string, string> }>("fq_catalog_list", {});
-    expect(cat.builtin).toEqual({ mafia: "public", invent: "public", invent_ahaji: "private", draw: "public", court: "public" });
+    expect(cat.builtin).toEqual({ mafia: "public", invent: "public", invent_ahaji: "private", draw: "public", court: "public", outage: "public" });
     expect((await call("fq_admin_set_visibility", { p_key: "mafia", p_visibility: "private" })).ok).toBe(true);
     cat = await call("fq_catalog_list", {});
     expect(cat.builtin.mafia).toBe("private");
