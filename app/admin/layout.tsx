@@ -7,7 +7,7 @@ import { currentUser } from "@/lib/server/auth/session";
 export const metadata: Metadata = { title: "لوحة التحكم" };
 
 /** Must match fq_schema_version() in the latest migration. */
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 async function schemaVersion(): Promise<number> {
   try {
@@ -32,10 +32,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           : version < 6
             ? `قاعدة البيانات تحتاج تحديث: افتح Supabase ← SQL Editor وشغّل ${version < 5 ? "20261028000000_mafia.sql ثم " : ""}20261029000000_invent.sql ثم 20261030000000_accounts.sql من supabase/migrations`
             : version < 7
-              ? "قاعدة البيانات تحتاج تحديث للحسابات: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261030000000_accounts.sql ثم 20261102000000_draw.sql ثم 20261111000000_outage.sql"
+              ? "قاعدة البيانات تحتاج تحديث للحسابات: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261030000000_accounts.sql ثم 20261102000000_draw.sql ثم 20261112000000_outage.sql"
               : version < 8
-                ? "قاعدة البيانات تحتاج تحديث للعبة الرسم: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261102000000_draw.sql ثم 20261111000000_outage.sql"
-                : "قاعدة البيانات تحتاج تحديث للعبة «انقطاع الاتصال»: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261111000000_outage.sql",
+                ? "قاعدة البيانات تحتاج تحديث للعبة الرسم: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261102000000_draw.sql ثم 20261112000000_outage.sql"
+                : "قاعدة البيانات تحتاج تحديث للعبة «انقطاع الاتصال»: افتح Supabase ← SQL Editor وشغّل supabase/migrations/20261112000000_outage.sql",
     });
   }
   if (isDevPassword()) {

@@ -267,6 +267,6 @@ describe("games (SQL)", () => {
   });
 
   it("reports the schema version", async () => {
-    expect(await call<number>("fq_schema_version", {})).toBe(9);
+    expect(await call<number>("fq_schema_version", {})).toBe(10);
   });
 });

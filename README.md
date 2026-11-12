@@ -139,7 +139,7 @@ nobody holds all the tools or all the information — codes, sensor readings and
   opening a breached section…), +500 with no system collapse, never below 0. Grades are shares of each level's maximum:
   S ≥ 68 %, A ≥ 58 %, B ≥ 48 %, else C; failure is F.
 - `/api/outage` (same optimistic-lock model as the other games), views in `lib/outage/views.ts` (the TV never sees a
-  code, key, signal, diagnosis or the backup generator's heat). Migration `20261111000000_outage.sql` (schema v9).
+  code, key, signal, diagnosis or the backup generator's heat). Migration `20261112000000_outage.sql` (schema v9).
 - Tests: `tests/outage.test.ts` (couplings, the reactor chain, codes, overlaps, decisions, blackouts, time, scoring,
   determinism, a scripted crew winning easy/medium with 3/6/8 players) and `tests/outage-route.test.ts` (end to end on the
   real migrations).

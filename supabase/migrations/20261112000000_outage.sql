@@ -16,13 +16,18 @@
 --   and counted as completed when the mission ends in success or failure
 --   (not when the host aborts it).
 --
--- Safe to run twice. Run after 20261102000000_draw.sql.
+-- Compatible with the «المحكمة» migration (20261111000000_court.sql, schema 9),
+-- which may already be applied: the shared catalog functions below keep every
+-- existing key ('court' included) and add 'outage'. Harmless where 'court' is absent.
+--
+-- Safe to run twice. Additive only: no table, row or other game is changed.
+-- Run after 20261102000000_draw.sql (and 20261111000000_court.sql if present).
 
 create or replace function public.fq_schema_version()
 returns integer
 language sql
 immutable
-as $$ select 9 $$;
+as $$ select 10 $$;
 
 -- ---------------------------------------------------------------------------
 -- Catalog
@@ -30,7 +35,7 @@ as $$ select 9 $$;
 
 alter table public.fq_catalog drop constraint if exists fq_catalog_key_check;
 alter table public.fq_catalog add constraint fq_catalog_key_check
-  check (key in ('mafia', 'invent', 'invent_ahaji', 'draw', 'outage'));
+  check (key in ('mafia', 'invent', 'invent_ahaji', 'draw', 'court', 'outage'));
 
 insert into public.fq_catalog (key, visibility)
 values ('outage', 'public')
@@ -45,6 +50,7 @@ as $$
            when 'mafia' then 'mafia'
            when 'invent' then case when p_config->>'questionSet' = 'custom' then 'invent' else 'invent_ahaji' end
            when 'draw' then 'draw'
+           when 'court' then 'court'
            when 'outage' then 'outage'
            else p_game_id::text
          end
@@ -61,12 +67,14 @@ as $$
                               and coalesce((p_match #>> '{game,endedEarly}')::boolean, false) = false
            when 'draw' then p_match #>> '{game,phase}' = 'final'
                             and coalesce((p_match #>> '{game,endedEarly}')::boolean, false) = false
+           when 'court' then p_match #>> '{game,phase}' = 'final'
+                             and coalesce((p_match #>> '{game,endedEarly}')::boolean, false) = false
            when 'outage' then p_match #>> '{game,outcome}' in ('success', 'failed')
            else jsonb_typeof(p_match->'winner') = 'object'
          end
 $$;
 
--- p_key: a built-in key ('mafia', 'invent', 'invent_ahaji', 'draw', 'outage') or a game id.
+-- p_key: a built-in key ('mafia', 'invent', 'invent_ahaji', 'draw', 'court', 'outage') or a game id.
 create or replace function public.fq_admin_set_visibility(p_key text, p_visibility text)
 returns jsonb
 language plpgsql
@@ -75,7 +83,7 @@ begin
   if p_visibility not in ('public', 'private') then
     return jsonb_build_object('ok', false, 'error', 'BAD_REQUEST');
   end if;
-  if p_key in ('mafia', 'invent', 'invent_ahaji', 'draw', 'outage') then
+  if p_key in ('mafia', 'invent', 'invent_ahaji', 'draw', 'court', 'outage') then
     update public.fq_catalog set visibility = p_visibility, updated_at = now() where key = p_key;
     return jsonb_build_object('ok', true);
   end if;

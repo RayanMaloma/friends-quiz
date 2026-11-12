@@ -81,8 +81,8 @@ beforeAll(async () => {
 });
 
 describe("accounts and roles", () => {
-  it("is schema version 9", async () => {
-    expect(await call<number>("fq_schema_version", {})).toBe(9);
+  it("is schema version 10", async () => {
+    expect(await call<number>("fq_schema_version", {})).toBe(10);
   });
 
   it("every new account gets the 'user' role and one registration event", async () => {
